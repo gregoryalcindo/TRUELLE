@@ -17,7 +17,7 @@ import com.gregory.truelle.ui.UiKit;
 
 /**
  * Écran 3 des maquettes : le panneau du bouton +.
- * Lot 1 : Dépense et Note. Photo, Devis et Travaux en plus arrivent aux lots suivants.
+ * Dépense (photo de la facture), Note, Travaux en plus.
  */
 public final class AjouterScreen extends Screen {
 
@@ -92,6 +92,19 @@ public final class AjouterScreen extends Screen {
             a.ouvrir(new NoteScreen(a, chantierId, null));
         }), new LinearLayout.LayoutParams(0, dp(150), 1f));
         panneau.addView(tuiles, UiKit.pleineLargeur());
+        LinearLayout travaux = UiKit.ligne(a, 14);
+        travaux.setGravity(Gravity.CENTER);
+        travaux.setBackground(UiKit.ripple(UiKit.rounded(UiKit.SURFACE, dp(18), 0, 0)));
+        travaux.setClickable(true);
+        travaux.setContentDescription("Travaux en plus");
+        travaux.addView(UiKit.icone(a, R.drawable.ic_note, UiKit.ENCRE, 36));
+        TextView tvTravaux = UiKit.titre(a, "Travaux en plus", 22);
+        travaux.addView(tvTravaux, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        travaux.setOnClickListener(v -> {
+            a.retour();
+            a.ouvrir(new TravauxScreen(a, chantierId, null));
+        });
+        panneau.addView(travaux, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(88)));
         panneau.addView(UiKit.text(a, "Dépense : photo de la facture ou du ticket, le montant est lu tout seul.", 15, UiKit.ENCRE_2, false));
 
         voile.addView(panneau, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM));

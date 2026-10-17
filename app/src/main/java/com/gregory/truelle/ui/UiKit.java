@@ -223,6 +223,65 @@ public final class UiKit {
         return id;
     }
 
+    /** Champ de montant : gros chiffres, clavier numérique, virgule ou point acceptés. */
+    public static EditText champMontant(Context c, String valeur) {
+        EditText e = champ(c, valeur, InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        e.setTypeface(TITRE);
+        e.setTextSize(TypedValue.COMPLEX_UNIT_SP, 26);
+        e.setHint("0,00 €");
+        e.setKeyListener(android.text.method.DigitsKeyListener.getInstance("0123456789,."));
+        e.setRawInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        return e;
+    }
+
+    /** Une rangée de boutons de choix exclusifs ({valeur, libellé}). La sélection est en noir. */
+    public static LinearLayout choix(Context c, String[][] options, String selection, java.util.function.Consumer<String> onChoix) {
+        LinearLayout row = ligne(c, 8);
+        for (String[] o : options) {
+            row.addView(boutonChoix(c, o[1], o[0].equals(selection), ENCRE, Color.WHITE, v -> onChoix.accept(o[0])), poids(1));
+        }
+        return row;
+    }
+
+    /** Ligne de liste cliquable : titre, sous-titre, valeur à droite, étiquette de statut. */
+    public static LinearLayout ligneListe(Context c, String titre, String sousTitre, String droite, TextView chip, View.OnClickListener l) {
+        LinearLayout row = ligne(c, 12);
+        row.setPadding(dp(c, 16), dp(c, 14), dp(c, 16), dp(c, 14));
+        row.setBackground(ripple(rounded(SURFACE, dp(c, 14), 0, 0)));
+        LinearLayout textes = colonne(c, 4);
+        TextView t = text(c, titre, 18, ENCRE, true);
+        t.setMaxLines(2);
+        textes.addView(t);
+        if (sousTitre != null && !sousTitre.isEmpty()) textes.addView(text(c, sousTitre, 16, ENCRE_2, false));
+        if (chip != null) {
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            textes.addView(chip, lp);
+        }
+        row.addView(textes, poids(1));
+        if (droite != null) row.addView(text(c, droite, 18, ENCRE, true));
+        if (l != null) {
+            row.setClickable(true);
+            row.setOnClickListener(l);
+        }
+        row.setContentDescription(titre + (droite != null ? ", " + droite : ""));
+        return row;
+    }
+
+    /** Ligne « libellé ……… valeur » pour les récapitulatifs chiffrés. */
+    public static LinearLayout ligneChiffre(Context c, String libelle, String valeur, boolean gras) {
+        LinearLayout row = ligne(c, 8);
+        row.addView(text(c, libelle, 17, gras ? ENCRE : ENCRE_2, gras), poids(1));
+        row.addView(text(c, valeur, gras ? 19 : 17, ENCRE, true));
+        return row;
+    }
+
+    /** Titre de section dans un contenu. */
+    public static TextView section(Context c, String s) {
+        TextView t = titre(c, s, 20);
+        t.setPadding(0, dp(c, 6), 0, 0);
+        return t;
+    }
+
     // ------------------------------------------------------------- mises en page
 
     public static LinearLayout colonne(Context c, int espaceDp) {

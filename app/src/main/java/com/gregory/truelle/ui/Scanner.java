@@ -148,6 +148,20 @@ public final class Scanner {
         }
     }
 
+    /** Aperçu d'un PDF ou d'une image (photo importée, signature). */
+    public static Bitmap apercuFichier(File f, int largeurPx) {
+        if (f == null) return null;
+        if (f.getName().toLowerCase().endsWith(".pdf")) return apercu(f, largeurPx);
+        android.graphics.BitmapFactory.Options o = new android.graphics.BitmapFactory.Options();
+        o.inJustDecodeBounds = true;
+        android.graphics.BitmapFactory.decodeFile(f.getAbsolutePath(), o);
+        int echantillon = 1;
+        while (o.outWidth / (echantillon * 2) >= largeurPx) echantillon *= 2;
+        o.inJustDecodeBounds = false;
+        o.inSampleSize = echantillon;
+        return android.graphics.BitmapFactory.decodeFile(f.getAbsolutePath(), o);
+    }
+
     /** Ouvre la facture dans la visionneuse PDF du téléphone. */
     public static void ouvrir(Context ctx, File fichier) {
         try {

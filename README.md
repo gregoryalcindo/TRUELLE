@@ -31,7 +31,7 @@ Chaque envoi de code lance aussi la compilation sur GitHub (onglet **Actions** �
 | Lot | Contenu | État |
 |---|---|---|
 | 1 | Chantiers, statuts, dépenses et notes (saisie manuelle), journal local | fait |
-| 2 | Photo de facture (scanner ML Kit, galerie, multi-pages) + lecture du montant, TVA, date, fournisseur | en test |
+| 2 | Photo de facture (scanner ML Kit, galerie, multi-pages) + lecture du montant, TVA, date, fournisseur | fait |
 | 3 | Synchronisation Google Drive entre les deux téléphones | à faire |
-| 4 | Gérer le chantier : devis, travaux en plus, réglages, rentabilité | à faire |
+| 4 | Gérer le chantier : devis, travaux en plus (signature client), facturation interne, réglages, rentabilité | en test |
 | 5 | PDF de fin de chantier | à faire |

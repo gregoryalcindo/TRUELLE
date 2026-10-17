@@ -40,6 +40,13 @@ public class MainActivity extends AppCompatActivity {
     private LocalStore store;
     private ActivityResultLauncher<IntentSenderRequest> lanceurScan;
     private Scanner.Callback scanEnCours;
+    private ActivityResultLauncher<String[]> lanceurFichier;
+    private FichierCallback fichierEnCours;
+
+    /** Fichier choisi dans le téléphone (PDF reçu par mail, photo…), copié dans le cache. */
+    public interface FichierCallback {
+        void onFichier(File fichier, String extension);
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -63,6 +70,28 @@ public class MainActivity extends AppCompatActivity {
             GmsDocumentScanningResult r = GmsDocumentScanningResult.fromActivityResultIntent(res.getData());
             if (r == null) cb.onErreur("Le scan n'a pas pu être lu");
             else Scanner.traiter(this, r, cb);
+        });
+
+        // Choix d'un fichier existant (devis PDF reçu d'un sous-traitant, par exemple).
+        lanceurFichier = registerForActivityResult(new ActivityResultContracts.OpenDocument(), uri -> {
+            FichierCallback cb = fichierEnCours;
+            fichierEnCours = null;
+            if (cb == null || uri == null) return;
+            try {
+                String type = getContentResolver().getType(uri);
+                String ext = type != null && type.contains("pdf") ? "pdf" : type != null && type.contains("png") ? "png" : type != null && type.startsWith("image") ? "jpg" : "pdf";
+                File dest = new File(getCacheDir(), "import-" + System.currentTimeMillis() + "." + ext);
+                try (java.io.InputStream in = getContentResolver().openInputStream(uri);
+                     java.io.OutputStream out = new java.io.FileOutputStream(dest)) {
+                    if (in == null) throw new java.io.IOException("fichier illisible");
+                    byte[] buf = new byte[64 * 1024];
+                    int n;
+                    while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+                }
+                cb.onFichier(dest, ext);
+            } catch (Exception e) {
+                android.widget.Toast.makeText(this, "Import impossible : " + e.getMessage(), android.widget.Toast.LENGTH_LONG).show();
+            }
         });
 
         conteneur = new FrameLayout(this);
@@ -127,6 +156,12 @@ public class MainActivity extends AppCompatActivity {
                 cb.onErreur(message);
             }
         });
+    }
+
+    /** Ouvre le sélecteur de fichiers du téléphone (PDF et images). */
+    public void choisirFichier(FichierCallback cb) {
+        fichierEnCours = cb;
+        lanceurFichier.launch(new String[]{"application/pdf", "image/*"});
     }
 
     private SharedPreferences prefs() {

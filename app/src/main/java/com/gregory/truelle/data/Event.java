@@ -22,6 +22,9 @@ public final class Event {
     public static final String CORRECTION = "correction";
     public static final String SUPPRESSION = "suppression";
     public static final String NOTE = "note";
+    public static final String DEVIS = "devis";
+    public static final String TRAVAUX = "travaux";
+    public static final String FACTURATION = "facturation";
 
     public final String id;
     public final String type;

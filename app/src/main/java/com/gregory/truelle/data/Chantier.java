@@ -27,12 +27,64 @@ public final class Chantier {
     public String adresse = "";
     public String mode = MODE_FORFAIT;
     public int majorationPct = 0;
+    /** Budget matériel prévu (centimes), 0 si non renseigné. */
+    public long budgetMaterielCentimes = 0;
     public String statut = A_DEMARRER;
     public long creeLe;
     public long modifieLe;
 
     private final Map<String, Depense> depenses = new LinkedHashMap<>();
     private final Map<String, Note> notes = new LinkedHashMap<>();
+    private final Map<String, Element> elements = new LinkedHashMap<>();
+
+    // Statuts des devis, travaux en plus et lignes de facturation.
+    public static final String DEVIS_NOUS = "nous";
+    public static final String DEVIS_SOUS_TRAITANT = "sous_traitant";
+    public static final String DEVIS_ENVOYE = "envoye";      // nos devis : envoyé au client
+    public static final String DEVIS_RECU = "recu";          // sous-traitant : reçu
+    public static final String DEVIS_SIGNE = "signe";        // accepté (par le client, ou par nous pour un sous-traitant)
+    public static final String DEVIS_REFUSE = "refuse";
+    public static final String TRAVAUX_PROPOSE = "propose";
+    public static final String TRAVAUX_ACCEPTE = "accepte";
+    public static final String TRAVAUX_FAIT = "fait";
+    public static final String FACT_A_FACTURER = "a_facturer";
+    public static final String FACT_FACTURE = "facture";
+    public static final String FACT_ENCAISSE = "encaisse";
+
+    /**
+     * Devis, travaux en plus, ligne de facturation : un élément à champs libres.
+     * Une correction remplace simplement les champs qu'elle contient.
+     */
+    public static final class Element {
+        public final String id;
+        public final String type;
+        public final String auteur;
+        public final long creeLe;
+        private final Map<String, String> champs = new LinkedHashMap<>();
+
+        Element(String id, String type, String auteur, long creeLe, Map<String, String> data) {
+            this.id = id;
+            this.type = type;
+            this.auteur = auteur;
+            this.creeLe = creeLe;
+            champs.putAll(data);
+        }
+
+        public String get(String cle) {
+            String v = champs.get(cle);
+            return v == null ? "" : v;
+        }
+
+        public long centimes(String cle) {
+            return parseLong(champs.get(cle), 0);
+        }
+
+        void appliquer(Map<String, String> corrections) {
+            for (Map.Entry<String, String> e : corrections.entrySet()) {
+                if (!"cible".equals(e.getKey())) champs.put(e.getKey(), e.getValue());
+            }
+        }
+    }
 
     public Chantier(String id) {
         this.id = id;
@@ -129,6 +181,11 @@ public final class Chantier {
             case Event.NOTE:
                 notes.put(e.id, new Note(e.id, e.get("texte", ""), e.auteur, e.at));
                 break;
+            case Event.DEVIS:
+            case Event.TRAVAUX:
+            case Event.FACTURATION:
+                elements.put(e.id, new Element(e.id, e.type, e.auteur, e.at, e.data()));
+                break;
             case Event.CORRECTION:
                 applyCorrection(e);
                 break;
@@ -137,6 +194,7 @@ public final class Chantier {
                 if (cible != null) {
                     depenses.remove(cible);
                     notes.remove(cible);
+                    elements.remove(cible);
                 }
                 break;
             }
@@ -153,6 +211,7 @@ public final class Chantier {
         if (e.get("adresse") != null) adresse = e.get("adresse");
         if (e.get("mode") != null) mode = MODE_REEL.equals(e.get("mode")) ? MODE_REEL : MODE_FORFAIT;
         if (e.get("majoration_pct") != null) majorationPct = (int) parseLong(e.get("majoration_pct"), 0);
+        if (e.get("budget_materiel_centimes") != null) budgetMaterielCentimes = parseLong(e.get("budget_materiel_centimes"), 0);
     }
 
     private void applyCorrection(Event e) {
@@ -170,6 +229,8 @@ public final class Chantier {
         }
         Note n = notes.get(cible);
         if (n != null && e.get("texte") != null) n.texte = e.get("texte");
+        Element el = elements.get(cible);
+        if (el != null) el.appliquer(e.data());
     }
 
     private static long parseLong(String s, long fallback) {
@@ -213,6 +274,88 @@ public final class Chantier {
         for (Note n : notes.values()) list.add(new Ajout(Event.NOTE, n.id, n.creeLe));
         list.sort((a, b) -> Long.compare(b.at, a.at));
         return list;
+    }
+
+    // ------------------------------------------------------------ devis, travaux, facturation
+
+    public Element element(String id) {
+        return elements.get(id);
+    }
+
+    /** Éléments d'un type donné, du plus ancien au plus récent. */
+    public List<Element> elements(String type) {
+        List<Element> l = new ArrayList<>();
+        for (Element el : elements.values()) if (el.type.equals(type)) l.add(el);
+        return l;
+    }
+
+    // ------------------------------------------------------------ rentabilité
+
+    /** Montant d'une dépense tel que refacturé au client (avec la majoration du chantier). */
+    public long montantRefacture(Depense d) {
+        return d.montantCentimes + Math.round(d.montantCentimes * majorationPct / 100.0);
+    }
+
+    public long totalDevisSignes() {
+        long t = 0;
+        for (Element el : elements(Event.DEVIS)) {
+            if (DEVIS_NOUS.equals(el.get("sorte")) && DEVIS_SIGNE.equals(el.get("statut"))) t += el.centimes("montant_centimes");
+        }
+        return t;
+    }
+
+    public long totalTravauxAcceptes() {
+        long t = 0;
+        for (Element el : elements(Event.TRAVAUX)) {
+            String s = el.get("statut");
+            if (TRAVAUX_ACCEPTE.equals(s) || TRAVAUX_FAIT.equals(s)) t += el.centimes("montant_centimes");
+        }
+        return t;
+    }
+
+    public long totalMaterielRefacture() {
+        long t = 0;
+        for (Depense d : depenses.values()) if (estARefacturer(d)) t += montantRefacture(d);
+        return t;
+    }
+
+    /** Ce que le client paiera : devis signés + travaux en plus acceptés + matériel refacturé. */
+    public long montantVendu() {
+        return totalDevisSignes() + totalTravauxAcceptes() + totalMaterielRefacture();
+    }
+
+    public long totalSousTraitance() {
+        long t = 0;
+        for (Element el : elements(Event.DEVIS)) {
+            if (DEVIS_SOUS_TRAITANT.equals(el.get("sorte")) && DEVIS_SIGNE.equals(el.get("statut"))) t += el.centimes("montant_centimes");
+        }
+        return t;
+    }
+
+    /** Ce que le chantier coûte : dépenses + sous-traitance acceptée. */
+    public long coutTotal() {
+        return totalDepensesCentimes() + totalSousTraitance();
+    }
+
+    public long marge() {
+        return montantVendu() - coutTotal();
+    }
+
+    public long totalFacture() {
+        long t = 0;
+        for (Element el : elements(Event.FACTURATION)) {
+            String s = el.get("statut");
+            if (FACT_FACTURE.equals(s) || FACT_ENCAISSE.equals(s)) t += el.centimes("montant_centimes");
+        }
+        return t;
+    }
+
+    public long totalEncaisse() {
+        long t = 0;
+        for (Element el : elements(Event.FACTURATION)) {
+            if (FACT_ENCAISSE.equals(el.get("statut"))) t += el.centimes("montant_centimes");
+        }
+        return t;
     }
 
     public static String libelleStatut(String statut) {

@@ -54,6 +54,7 @@ public final class FicheScreen extends Screen {
         if (!sous.isEmpty()) p.entete.addView(UiKit.text(a, sous, 18, UiKit.ENCRE_2, false));
 
         p.contenu.addView(blocStatut(c), UiKit.pleineLargeur());
+        p.contenu.addView(UiKit.boutonContour(a, "Gérer le chantier", v -> a.ouvrir(new GererScreen(a, c.id, null))), UiKit.pleineLargeur());
 
         LinearLayout ligneAjouts = UiKit.ligne(a, 8);
         ligneAjouts.addView(UiKit.titre(a, "Derniers ajouts", 20), UiKit.poids(1));
