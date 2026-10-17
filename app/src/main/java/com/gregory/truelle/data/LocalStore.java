@@ -108,6 +108,17 @@ public final class LocalStore {
         return sousDossier + "/" + dest.getName();
     }
 
+    /** Fichiers d'un sous-dossier du chantier (ex. « PDF client »), les plus récents en premier. */
+    public synchronized List<File> fichiers(String chantierId, String sousDossier) {
+        List<File> res = new ArrayList<>();
+        File dir = dossierDe(chantierId);
+        if (dir == null) return res;
+        File[] fs = new File(dir, sousDossier).listFiles(f -> f.isFile() && !f.getName().startsWith("."));
+        if (fs != null) for (File f : fs) res.add(f);
+        res.sort((x, y) -> y.getName().compareTo(x.getName()));
+        return res;
+    }
+
     /** Le fichier réel correspondant à un chemin relatif enregistré dans le journal, ou null. */
     public synchronized File fichier(String chantierId, String cheminRelatif) {
         if (cheminRelatif == null || cheminRelatif.isEmpty() || cheminRelatif.contains("..")) return null;

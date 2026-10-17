@@ -24,14 +24,30 @@ Journal de l'appli pendant un test :
 adb logcat -v time | findstr /i "truelle AndroidRuntime"
 ```
 
+## Connecter Google Drive (une seule fois)
+La synchro passe par le **compte Google de l'entreprise**, le même sur les deux téléphones.
+
+1. **Empreinte de la clé** : double-cliquer sur `GET_SHA1.bat` et copier la ligne `SHA1: AA:BB:…`.
+   Pour le téléphone de ton père, l'APK doit être compilé sur ce même PC (même clé).
+2. **Console Google Cloud** (console.cloud.google.com), avec le compte qui gère les projets :
+   - créer un projet « Truelle » ;
+   - *API et services → Bibliothèque* : activer **Google Drive API** ;
+   - *Google Auth Platform → Branding* : nom « Truelle », e-mail d'assistance ;
+   - *Google Auth Platform → Audience* : type **Externe**, laisser en **Test**, ajouter le compte Google de l'entreprise (et le tien) dans **Utilisateurs test** ;
+   - *Google Auth Platform → Clients → Créer un client* : type **Android**, nom du package `com.gregory.truelle`, empreinte SHA-1 de l'étape 1.
+3. **Dans l'appli** : toucher « Drive non connecté — toucher pour connecter » sur l'accueil, choisir le compte de l'entreprise et accepter.
+   L'appli crée le dossier `Chantiers` dans ce Drive et synchronise à l'ouverture, après chaque saisie et à la demande.
+
+Autorisation demandée : `drive.file` (l'appli ne voit que les fichiers qu'elle a créés elle-même).
+
 ## Secours : APK compilé par GitHub
-Chaque envoi de code lance aussi la compilation sur GitHub (onglet **Actions** → dernière exécution → **Artifacts** → `truelle-debug`). Utile pour vérifier que tout compile, ou pour installer sans PC.
+Chaque envoi de code lance aussi la compilation sur GitHub (onglet **Actions** → dernière exécution → **Artifacts** → `truelle-debug`). Utile pour vérifier que tout compile. Attention : cet APK a une autre clé, la connexion Google Drive n'y fonctionne pas.
 
 ## Feuille de route
 | Lot | Contenu | État |
 |---|---|---|
 | 1 | Chantiers, statuts, dépenses et notes (saisie manuelle), journal local | fait |
 | 2 | Photo de facture (scanner ML Kit, galerie, multi-pages) + lecture du montant, TVA, date, fournisseur | fait |
-| 3 | Synchronisation Google Drive entre les deux téléphones | à faire |
-| 4 | Gérer le chantier : devis, travaux en plus (signature client), facturation interne, réglages, rentabilité | en test |
-| 5 | PDF de fin de chantier | à faire |
+| 3 | Synchronisation Google Drive entre les deux téléphones (journal sans écrasement) | en test |
+| 4 | Gérer le chantier : devis, travaux en plus (signature client), facturation interne, réglages, rentabilité | fait |
+| 5 | PDF de fin de chantier : récapitulatif, accords signés, factures fournisseurs en annexe, envoi au client | en test |

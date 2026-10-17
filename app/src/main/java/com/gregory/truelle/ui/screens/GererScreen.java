@@ -218,6 +218,7 @@ public final class GererScreen extends Screen {
         }
         p.contenu.addView(UiKit.text(a, "Suivi interne : la vraie facture est faite à part, notez ici son numéro pour faire le lien.", 15, UiKit.ENCRE_2, false));
         p.ajouterAuPied(UiKit.boutonAction(a, "+ Ajouter une ligne", v -> a.ouvrir(new FacturationScreen(a, chantierId, null))));
+        p.ajouterAuPied(UiKit.boutonContour(a, "PDF de fin de chantier", v -> a.ouvrir(new FinChantierScreen(a, chantierId))));
     }
 
     // ------------------------------------------------------------- Réglages
