@@ -14,6 +14,7 @@ import android.text.StaticLayout;
 import android.text.TextPaint;
 
 import com.gregory.truelle.data.Chantier;
+import com.gregory.truelle.data.DossierDepenses;
 import com.gregory.truelle.data.LocalStore;
 import com.gregory.truelle.data.Money;
 import com.gregory.truelle.data.RecapFin;
@@ -46,6 +47,7 @@ public final class PdfFinChantier {
     private Canvas c;
     private float y;
     private int numero = 0;
+    private String pied = "Document récapitulatif — ne remplace pas la facture.";
 
     private PdfFinChantier() {}
 
@@ -73,61 +75,9 @@ public final class PdfFinChantier {
 
     private void recapitulatif(LocalStore store, Chantier ch, RecapFin r, Map<String, String> ent) {
         nouvellePage();
-        String date = new SimpleDateFormat("dd/MM/yyyy", Locale.FRANCE).format(new Date());
+        enteteEtChantier(ch, ent, "RÉCAPITULATIF", "DE FIN DE CHANTIER");
 
-        // En-tête : entreprise à gauche, titre du document à droite.
-        float yG = y;
-        String nom = val(ent, "nom");
-        if (!nom.isEmpty()) yG = texte(nom, M, yG, 15, true, ENCRE, 300);
-        for (String cle : new String[]{"adresse", "telephone", "email"}) {
-            if (!val(ent, cle).isEmpty()) yG = texte(val(ent, cle), M, yG + 1, 9, false, GRIS, 300);
-        }
-        if (!val(ent, "siret").isEmpty()) yG = texte("SIRET " + val(ent, "siret"), M, yG + 1, 9, false, GRIS, 300);
-        float yD = texteDroite("RÉCAPITULATIF", L - M, y, 13, true, ENCRE);
-        yD = texteDroite("DE FIN DE CHANTIER", L - M, yD, 13, true, ENCRE);
-        yD = texteDroite("Édité le " + date, L - M, yD + 4, 9, false, GRIS);
-        y = Math.max(yG, yD) + 18;
-
-        // Bloc chantier sur fond clair : on mesure d'abord, on dessine le fond, puis le texte.
-        int largeurBloc = L - 2 * M - 24;
-        String l1 = "Chantier : " + ch.titre;
-        String l2 = ch.client.isEmpty() ? null : "Client : " + ch.client;
-        String l3 = ch.adresse.isEmpty() ? null : "Adresse : " + ch.adresse;
-        float hBloc = 20 + hauteur(l1, 11, true, largeurBloc)
-                + (l2 == null ? 0 : 2 + hauteur(l2, 10, false, largeurBloc))
-                + (l3 == null ? 0 : 2 + hauteur(l3, 10, false, largeurBloc));
-        Paint fond = new Paint();
-        fond.setColor(FOND);
-        c.drawRect(M, y, L - M, y + hBloc, fond);
-        float yc = texte(l1, M + 12, y + 10, 11, true, ENCRE, largeurBloc);
-        if (l2 != null) yc = texte(l2, M + 12, yc + 2, 10, false, ENCRE, largeurBloc);
-        if (l3 != null) texte(l3, M + 12, yc + 2, 10, false, ENCRE, largeurBloc);
-        y += hBloc + 22;
-
-        // Sections.
-        for (RecapFin.Section s : r.sections) {
-            besoin(50);
-            y = texte(s.titre, M, y, 12, true, ENCRE, L - 2 * M);
-            y += 4;
-            trait();
-            for (RecapFin.Ligne l : s.lignes) {
-                float h = hauteur(l.libelle, 10, false, 360) + (l.detail.isEmpty() ? 0 : hauteur(l.detail, 8.5f, false, 360) + 1) + 8;
-                besoin(h);
-                float y0 = y + 4;
-                float yb = texte(l.libelle, M, y0, 10, false, ENCRE, 360);
-                if (!l.detail.isEmpty()) yb = texte(l.detail, M, yb + 1, 8.5f, false, GRIS, 360);
-                texteDroite(Money.format(l.montantCentimes), L - M, y0, 10, false, ENCRE);
-                y = yb + 4;
-                trait();
-            }
-            besoin(20);
-            texteDroite("Sous-total : " + Money.format(s.total), L - M, y + 4, 10, true, ENCRE);
-            y += 30;
-        }
-        if (r.sections.isEmpty()) {
-            y = texte("Aucun montant à récapituler : ajoutez les devis signés, travaux acceptés ou matériel refacturé.", M, y, 10, false, GRIS, L - 2 * M);
-            y += 16;
-        }
+        sections(r.sections, "Aucun montant à récapituler : ajoutez les devis signés, travaux acceptés ou matériel refacturé.");
 
         // Totaux.
         besoin(80);
@@ -166,9 +116,103 @@ public final class PdfFinChantier {
         texte("Montants TTC. Ce récapitulatif accompagne la facture et ne la remplace pas.", M, y + 6, 8.5f, false, GRIS, L - 2 * M);
     }
 
+    /** Sections de lignes « libellé / détail / montant » avec sous-totaux. */
+    private void sections(java.util.List<RecapFin.Section> liste, String siVide) {
+        for (RecapFin.Section s : liste) {
+            besoin(50);
+            y = texte(s.titre, M, y, 12, true, ENCRE, L - 2 * M);
+            y += 4;
+            trait();
+            for (RecapFin.Ligne l : s.lignes) {
+                float h = hauteur(l.libelle, 10, false, 360) + (l.detail.isEmpty() ? 0 : hauteur(l.detail, 8.5f, false, 360) + 1) + 8;
+                besoin(h);
+                float y0 = y + 4;
+                float yb = texte(l.libelle, M, y0, 10, false, ENCRE, 360);
+                if (!l.detail.isEmpty()) yb = texte(l.detail, M, yb + 1, 8.5f, false, GRIS, 360);
+                texteDroite(Money.format(l.montantCentimes), L - M, y0, 10, false, ENCRE);
+                y = yb + 4;
+                trait();
+            }
+            besoin(20);
+            texteDroite("Sous-total : " + Money.format(s.total), L - M, y + 4, 10, true, ENCRE);
+            y += 30;
+        }
+        if (liste.isEmpty()) {
+            y = texte(siVide, M, y, 10, false, GRIS, L - 2 * M);
+            y += 16;
+        }
+    }
+
     private void ligneTotal(String lib, String val, float x, float yy, boolean gras) {
         texte(lib, x, yy, gras ? 12 : 10, gras, ENCRE, 140);
         texteDroite(val, L - M - 12, yy, gras ? 12 : 10, gras, ENCRE);
+    }
+
+    /** En-tête (entreprise à gauche, titre du document à droite) puis le bloc chantier. */
+    private void enteteEtChantier(Chantier ch, Map<String, String> ent, String titre1, String titre2) {
+        String date = new SimpleDateFormat("dd/MM/yyyy", Locale.FRANCE).format(new Date());
+        float yG = y;
+        String nom = val(ent, "nom");
+        if (!nom.isEmpty()) yG = texte(nom, M, yG, 15, true, ENCRE, 300);
+        for (String cle : new String[]{"adresse", "telephone", "email"}) {
+            if (!val(ent, cle).isEmpty()) yG = texte(val(ent, cle), M, yG + 1, 9, false, GRIS, 300);
+        }
+        if (!val(ent, "siret").isEmpty()) yG = texte("SIRET " + val(ent, "siret"), M, yG + 1, 9, false, GRIS, 300);
+        float yD = texteDroite(titre1, L - M, y, 13, true, ENCRE);
+        yD = texteDroite(titre2, L - M, yD, 13, true, ENCRE);
+        yD = texteDroite("Édité le " + date, L - M, yD + 4, 9, false, GRIS);
+        y = Math.max(yG, yD) + 18;
+
+        // Bloc chantier sur fond clair : on mesure d'abord, on dessine le fond, puis le texte.
+        int largeurBloc = L - 2 * M - 24;
+        String l1 = "Chantier : " + ch.titre;
+        String l2 = ch.client.isEmpty() ? null : "Client : " + ch.client;
+        String l3 = ch.adresse.isEmpty() ? null : "Adresse : " + ch.adresse;
+        float hBloc = 20 + hauteur(l1, 11, true, largeurBloc)
+                + (l2 == null ? 0 : 2 + hauteur(l2, 10, false, largeurBloc))
+                + (l3 == null ? 0 : 2 + hauteur(l3, 10, false, largeurBloc));
+        Paint fond = new Paint();
+        fond.setColor(FOND);
+        c.drawRect(M, y, L - M, y + hBloc, fond);
+        float yc = texte(l1, M + 12, y + 10, 11, true, ENCRE, largeurBloc);
+        if (l2 != null) yc = texte(l2, M + 12, yc + 2, 10, false, ENCRE, largeurBloc);
+        if (l3 != null) texte(l3, M + 12, yc + 2, 10, false, ENCRE, largeurBloc);
+        y += hBloc + 22;
+    }
+
+    // ------------------------------------------------------------ dossier des factures de dépenses
+
+    /** Toutes les factures de dépenses, rangées par catégorie : document interne (toi, le comptable). */
+    public static File genererDossierDepenses(File dossierTemp, LocalStore store, Chantier chantier, DossierDepenses d, Map<String, String> entreprise) throws IOException {
+        PdfFinChantier p = new PdfFinChantier();
+        p.pied = "Dossier interne des factures de dépenses du chantier.";
+        try {
+            p.nouvellePage();
+            p.enteteEtChantier(chantier, entreprise, "DOSSIER DES FACTURES", "DE DÉPENSES");
+            p.sections(d.sections, "Aucune dépense enregistrée sur ce chantier.");
+            p.besoin(60);
+            float xBox = L - M - 250;
+            Paint fond = new Paint();
+            fond.setColor(FOND);
+            p.c.drawRect(xBox, p.y, L - M, p.y + 32, fond);
+            p.ligneTotal("Total des dépenses", Money.format(d.total), xBox + 12, p.y + 10, true);
+            p.y += 48;
+            String note = d.annexes.size() + " facture(s) jointe(s) ci-après, dans l'ordre du sommaire."
+                    + (d.sansFacture > 0 ? " " + d.sansFacture + " dépense(s) sans facture." : "");
+            p.texte(note, M, p.y, 9, false, GRIS, L - 2 * M);
+            for (RecapFin.Annexe an : d.annexes) {
+                File f = store.fichier(chantier.id, an.fichier);
+                if (f != null) p.annexe(an.titre, f);
+            }
+            if (p.page != null) p.doc.finishPage(p.page);
+            File out = new File(dossierTemp, "dossier-factures-" + System.currentTimeMillis() + ".pdf");
+            try (FileOutputStream fos = new FileOutputStream(out)) {
+                p.doc.writeTo(fos);
+            }
+            return out;
+        } finally {
+            p.doc.close();
+        }
     }
 
     // ------------------------------------------------------------ annexes
@@ -233,7 +277,7 @@ public final class PdfFinChantier {
         page = doc.startPage(new PdfDocument.PageInfo.Builder(L, H, numero).create());
         c = page.getCanvas();
         y = M;
-        texte("Document récapitulatif — ne remplace pas la facture.", M, H - 30, 7.5f, false, GRIS, 400);
+        texte(pied, M, H - 30, 7.5f, false, GRIS, 400);
         texteDroite("Page " + numero, L - M, H - 30, 7.5f, false, GRIS);
     }
 

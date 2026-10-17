@@ -155,11 +155,20 @@ public final class GererScreen extends Screen {
         List<Chantier.Depense> liste = c.depenses();
         p.contenu.addView(UiKit.ligneChiffre(a, liste.size() + (liste.size() > 1 ? " dépenses" : " dépense"), "Total : " + Money.format(c.totalDepensesCentimes()), true), UiKit.pleineLargeur());
         if (liste.isEmpty()) p.contenu.addView(UiKit.text(a, "Aucune dépense pour l'instant.", 16, UiKit.ENCRE_2, false));
+        else {
+            LinearLayout parCat = UiKit.carte(a, 6);
+            parCat.setBackground(UiKit.rounded(UiKit.SURFACE, dp(16), 0, 0));
+            for (String[] cat : com.gregory.truelle.data.Categories.TOUTES) {
+                long t = c.totalCategorie(cat[0]);
+                if (t > 0) parCat.addView(UiKit.ligneChiffre(a, cat[1], Money.format(t), false), UiKit.pleineLargeur());
+            }
+            p.contenu.addView(parCat, UiKit.pleineLargeur());
+        }
         for (int i = liste.size() - 1; i >= 0; i--) {
             Chantier.Depense d = liste.get(i);
             boolean refact = c.estARefacturer(d);
             TextView chip = refact ? UiKit.chipContour(a, "À refacturer") : UiKit.chip(a, "Interne", UiKit.GRIS_FOND, UiKit.GRIS);
-            String sous = d.date + (d.fichier.isEmpty() ? "" : " · facture jointe");
+            String sous = com.gregory.truelle.data.Categories.libelle(d.categorie) + (d.date.isEmpty() ? "" : " · " + d.date) + (d.fichier.isEmpty() ? "" : " · facture jointe");
             p.contenu.addView(UiKit.ligneListe(a, d.fournisseur.isEmpty() ? "Dépense" : d.fournisseur, sous, Money.format(d.montantCentimes), chip,
                     v -> a.ouvrir(new DepenseScreen(a, chantierId, d.id))), UiKit.pleineLargeur());
         }
@@ -218,7 +227,7 @@ public final class GererScreen extends Screen {
         }
         p.contenu.addView(UiKit.text(a, "Suivi interne : la vraie facture est faite à part, notez ici son numéro pour faire le lien.", 15, UiKit.ENCRE_2, false));
         p.ajouterAuPied(UiKit.boutonAction(a, "+ Ajouter une ligne", v -> a.ouvrir(new FacturationScreen(a, chantierId, null))));
-        p.ajouterAuPied(UiKit.boutonContour(a, "PDF de fin de chantier", v -> a.ouvrir(new FinChantierScreen(a, chantierId))));
+        p.ajouterAuPied(UiKit.boutonContour(a, "PDF du chantier", v -> a.ouvrir(new FinChantierScreen(a, chantierId))));
     }
 
     // ------------------------------------------------------------- Réglages

@@ -71,6 +71,10 @@ public final class RentabiliteScreen extends Screen {
         String libDep = "Matériel et achats" + (c.budgetMaterielCentimes > 0 ? " (prévu " + Money.format(c.budgetMaterielCentimes) + ")" : "");
         couts.addView(UiKit.ligneChiffre(a, libDep, Money.format(depenses), false), UiKit.pleineLargeur());
         if (c.budgetMaterielCentimes > 0) couts.addView(barre(depenses, c.budgetMaterielCentimes), UiKit.pleineLargeur());
+        for (String[] cat : com.gregory.truelle.data.Categories.TOUTES) {
+            long t = c.totalCategorie(cat[0]);
+            if (t > 0 && t != depenses) couts.addView(UiKit.ligneChiffre(a, "   dont " + cat[1].toLowerCase(java.util.Locale.FRANCE), Money.format(t), false), UiKit.pleineLargeur());
+        }
         couts.addView(UiKit.ligneChiffre(a, "Sous-traitance acceptée", Money.format(c.totalSousTraitance()), false), UiKit.pleineLargeur());
         couts.addView(UiKit.ligneChiffre(a, "Total", Money.format(c.coutTotal()), true), UiKit.pleineLargeur());
         p.contenu.addView(couts, UiKit.pleineLargeur());

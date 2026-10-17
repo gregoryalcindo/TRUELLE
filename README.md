@@ -51,3 +51,4 @@ Chaque envoi de code lance aussi la compilation sur GitHub (onglet **Actions** �
 | 3 | Synchronisation Google Drive entre les deux téléphones (journal sans écrasement) | en test |
 | 4 | Gérer le chantier : devis, travaux en plus (signature client), facturation interne, réglages, rentabilité | fait |
 | 5 | PDF de fin de chantier : récapitulatif, accords signés, factures fournisseurs en annexe, envoi au client | en test |
+| 6 | Catégories de dépenses + PDF par catégorie (récapitulatif client / dossier des factures de dépenses) | en test |

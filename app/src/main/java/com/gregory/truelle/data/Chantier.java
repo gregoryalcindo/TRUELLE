@@ -99,6 +99,8 @@ public final class Chantier {
         public String refacturer;
         /** Chemin de la facture dans le dossier du chantier (ex. « Dépenses/2026…pdf »), vide si aucune. */
         public String fichier = "";
+        /** Catégorie (voir Categories) : matériel par défaut. */
+        public String categorie = Categories.MATERIEL;
         /** TVA lue sur la facture, -1 si inconnue. */
         public long tvaCentimes = -1;
         public final String auteur;
@@ -174,6 +176,7 @@ public final class Chantier {
                 d.date = e.get("date", "");
                 d.refacturer = e.get("refacturer", "auto");
                 d.fichier = e.get("fichier", "");
+                d.categorie = Categories.normaliser(e.get("categorie"));
                 d.tvaCentimes = parseLong(e.get("tva_centimes"), -1);
                 depenses.put(e.id, d);
                 break;
@@ -224,6 +227,7 @@ public final class Chantier {
             if (e.get("date") != null) d.date = e.get("date");
             if (e.get("refacturer") != null) d.refacturer = e.get("refacturer");
             if (e.get("fichier") != null) d.fichier = e.get("fichier");
+            if (e.get("categorie") != null) d.categorie = Categories.normaliser(e.get("categorie"));
             if (e.get("tva_centimes") != null) d.tvaCentimes = parseLong(e.get("tva_centimes"), d.tvaCentimes);
             return;
         }
@@ -294,6 +298,13 @@ public final class Chantier {
     /** Montant d'une dépense tel que refacturé au client (avec la majoration du chantier). */
     public long montantRefacture(Depense d) {
         return d.montantCentimes + Math.round(d.montantCentimes * majorationPct / 100.0);
+    }
+
+    /** Total des dépenses d'une catégorie. */
+    public long totalCategorie(String categorie) {
+        long t = 0;
+        for (Depense d : depenses.values()) if (d.categorie.equals(categorie)) t += d.montantCentimes;
+        return t;
     }
 
     public long totalDevisSignes() {

@@ -33,7 +33,7 @@ public final class LocalStore {
     public static final String APP_DIR = "_App";
     public static final String ARCHIVES_DIR = "_Archives";
     public static final String JOURNAL_DIR = "journal";
-    public static final String[] SOUS_DOSSIERS = {"Dépenses", "Devis", "Travaux en plus", "Photos", "PDF client"};
+    public static final String[] SOUS_DOSSIERS = {"Dépenses", "Devis", "Travaux en plus", "Photos", "PDF client", "Factures des dépenses"};
 
     private final File root;
 

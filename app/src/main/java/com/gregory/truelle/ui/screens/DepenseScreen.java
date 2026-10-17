@@ -53,6 +53,8 @@ public final class DepenseScreen extends Screen {
     private String date;
     private String refacturer;
     private long tvaCentimes = -1;
+    /** Catégorie choisie ; null = devinée depuis le fournisseur au moment d'enregistrer. */
+    private String categorie;
 
     public DepenseScreen(MainActivity a, String chantierId, String depenseId) {
         super(a);
@@ -84,6 +86,7 @@ public final class DepenseScreen extends Screen {
             date = edition && !existante.date.isEmpty() ? existante.date : FORMAT_DATE.format(new Date());
             refacturer = edition ? existante.refacturer : "auto";
             tvaCentimes = edition ? existante.tvaCentimes : -1;
+            categorie = edition ? existante.categorie : null;
             if (scan != null) completerAvecLecture();
         }
 
@@ -125,6 +128,7 @@ public final class DepenseScreen extends Screen {
         duo.addView(UiKit.libelle(a, "Fournisseur", fFournisseur), UiKit.poids(1.4f));
         duo.addView(UiKit.libelle(a, "Date", fDate), UiKit.poids(1f));
         p.contenu.addView(duo, UiKit.pleineLargeur());
+        p.contenu.addView(blocCategorie(fMontant, fFournisseur), UiKit.pleineLargeur());
 
         if (tvaCentimes > 0) {
             p.contenu.addView(UiKit.text(a, "TVA lue sur la facture : " + Money.format(tvaCentimes), 16, UiKit.ENCRE_2, false));
@@ -271,6 +275,7 @@ public final class DepenseScreen extends Screen {
             data.put("fournisseur", fournisseur);
             data.put("date", date);
             data.put("refacturer", "auto");
+            data.put("categorie", categorie != null ? categorie : com.gregory.truelle.data.Categories.deviner(fournisseur));
             if (fichier != null) data.put("fichier", fichier);
             if (tvaCentimes > 0) data.put("tva_centimes", Long.toString(tvaCentimes));
             ok = enregistrer(chantierId, Event.DEPENSE, data);
@@ -282,6 +287,7 @@ public final class DepenseScreen extends Screen {
             if (!fournisseur.equals(existante.fournisseur)) data.put("fournisseur", fournisseur);
             if (!date.equals(existante.date)) data.put("date", date);
             if (!refacturer.equals(existante.refacturer)) data.put("refacturer", refacturer);
+            if (categorie != null && !categorie.equals(existante.categorie)) data.put("categorie", categorie);
             if (fichier != null) data.put("fichier", fichier);
             if (tvaCentimes != existante.tvaCentimes && tvaCentimes > 0) data.put("tva_centimes", Long.toString(tvaCentimes));
             ok = data.size() == 1 || enregistrer(chantierId, Event.CORRECTION, data);
@@ -308,6 +314,32 @@ public final class DepenseScreen extends Screen {
             }), o[0].equals("auto") ? UiKit.poids(1.6f) : UiKit.poids(1f));
         }
         bloc.addView(row, UiKit.pleineLargeur());
+        return bloc;
+    }
+
+    /** Catégorie : 5 boutons sur deux lignes ; par défaut, celle devinée depuis le fournisseur. */
+    private View blocCategorie(EditText fMontant, EditText fFournisseur) {
+        String actuelle = categorie != null ? categorie
+                : com.gregory.truelle.data.Categories.deviner(fFournisseur.getText().toString());
+        LinearLayout bloc = UiKit.colonne(a, 8);
+        bloc.addView(UiKit.text(a, "Catégorie", 16, UiKit.ENCRE_2, false));
+        String[][] toutes = com.gregory.truelle.data.Categories.TOUTES;
+        String[][] courts = {{toutes[0][0], "Matériel"}, {toutes[1][0], "Location"}, {toutes[2][0], "Carburant"}, {toutes[3][0], "Repas"}, {toutes[4][0], "Divers"}};
+        for (int ligne = 0; ligne < 2; ligne++) {
+            LinearLayout row = UiKit.ligne(a, 8);
+            int debut = ligne == 0 ? 0 : 3;
+            int fin = ligne == 0 ? 3 : 5;
+            for (int i = debut; i < fin; i++) {
+                String[] o = courts[i];
+                row.addView(UiKit.boutonChoix(a, o[1], o[0].equals(actuelle), UiKit.ENCRE, Color.WHITE, v -> {
+                    garder(fMontant, fFournisseur);
+                    categorie = o[0];
+                    a.remplacer(this);
+                }), UiKit.poids(1));
+            }
+            if (ligne == 1) row.addView(new View(a), UiKit.poids(1)); // garde la même largeur de bouton
+            bloc.addView(row, UiKit.pleineLargeur());
+        }
         return bloc;
     }
 
