@@ -94,7 +94,7 @@ public final class DevisScreen extends Screen {
 
         p.contenu.addView(UiKit.libelle(a, "Intitulé", fLibelle), UiKit.pleineLargeur());
         if (!nous) p.contenu.addView(UiKit.libelle(a, "Sous-traitant", fPrestataire), UiKit.pleineLargeur());
-        p.contenu.addView(UiKit.libelle(a, "Montant TTC", fMontant), UiKit.pleineLargeur());
+        p.contenu.addView(UiKit.libelle(a, "Montant TTC", UiKit.euro(a, fMontant)), UiKit.pleineLargeur());
 
         LinearLayout blocStatut = UiKit.colonne(a, 8);
         blocStatut.addView(UiKit.text(a, "Statut", 16, UiKit.ENCRE_2, false));
@@ -122,7 +122,7 @@ public final class DevisScreen extends Screen {
             if (nouveauFichier != null) {
                 try {
                     fichier = store().importerFichier(chantierId, "Devis", nouveauFichier,
-                            (nous ? "devis-" : "sous-traitant-") + (nous ? libelle : prestataire), nouvelleExtension);
+                            com.gregory.truelle.data.NomsFichiers.devis(nous, libelle, prestataire, centimes), nouvelleExtension);
                 } catch (Exception e) {
                     toast("Le document n'a pas pu être rangé : " + e.getMessage());
                     return;

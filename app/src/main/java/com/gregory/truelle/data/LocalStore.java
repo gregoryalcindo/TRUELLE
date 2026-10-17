@@ -81,19 +81,19 @@ public final class LocalStore {
     }
 
     /**
-     * Copie un fichier (facture scannée…) dans un sous-dossier du chantier.
-     * Le nom commence par la date et l'heure pour un classement naturel dans Drive.
+     * Copie un fichier (facture scannée, devis, signature, PDF…) dans un sous-dossier du chantier,
+     * sous un nom lisible donné par NomsFichiers. Si le nom existe déjà : « … (2) », « … (3) »…
      * Retourne le chemin relatif au dossier du chantier, à enregistrer dans le journal.
      */
-    public synchronized String importerFichier(String chantierId, String sousDossier, File source, String libelle, String extension) throws IOException {
+    public synchronized String importerFichier(String chantierId, String sousDossier, File source, String nom, String extension) throws IOException {
         File dir = dossierDe(chantierId);
         if (dir == null) throw new IOException("Chantier introuvable : " + chantierId);
         File cible = new File(dir, sousDossier);
         mkdirs(cible);
-        String stamp = new java.text.SimpleDateFormat("yyyyMMdd-HHmmss", java.util.Locale.FRANCE).format(new java.util.Date());
-        String nom = nettoyer(libelle).replace(' ', '-');
-        String base = stamp + (nom.isEmpty() ? "" : "_" + nom) + "_" + UUID.randomUUID().toString().substring(0, 6);
+        String base = nettoyerNomFichier(nom);
+        if (base.isEmpty()) base = "Document";
         File dest = new File(cible, base + "." + extension);
+        for (int i = 2; dest.exists(); i++) dest = new File(cible, base + " (" + i + ")." + extension);
         File tmp = new File(cible, "." + dest.getName() + ".tmp");
         try (InputStream in = new FileInputStream(source); OutputStream out = new FileOutputStream(tmp)) {
             byte[] buf = new byte[64 * 1024];
@@ -106,6 +106,14 @@ public final class LocalStore {
             throw new IOException("Impossible d'enregistrer " + dest.getName());
         }
         return sousDossier + "/" + dest.getName();
+    }
+
+    /** Nom de fichier : caractères interdits retirés, espaces simplifiées, 120 caractères au plus. */
+    static String nettoyerNomFichier(String s) {
+        if (s == null) return "";
+        String t = s.replaceAll("[\\\\/:*?\"<>|\\p{Cntrl}]", " ").replaceAll("\\s+", " ").trim();
+        if (t.startsWith(".")) t = t.substring(1).trim();
+        return t.length() > 120 ? t.substring(0, 120).trim() : t;
     }
 
     /** Fichiers d'un sous-dossier du chantier (ex. « PDF client »), les plus récents en premier. */

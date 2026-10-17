@@ -288,7 +288,7 @@ public final class GererScreen extends Screen {
         p.contenu.addView(carte(blocMaj), UiKit.pleineLargeur());
 
         // Budget et infos
-        p.contenu.addView(UiKit.libelle(a, "Budget matériel prévu", fBudget), UiKit.pleineLargeur());
+        p.contenu.addView(UiKit.libelle(a, "Budget matériel prévu", UiKit.euro(a, fBudget)), UiKit.pleineLargeur());
         p.contenu.addView(UiKit.libelle(a, "Travaux", fTitre), UiKit.pleineLargeur());
         p.contenu.addView(UiKit.libelle(a, "Client", fClient), UiKit.pleineLargeur());
         p.contenu.addView(UiKit.libelle(a, "Adresse", fAdresse), UiKit.pleineLargeur());

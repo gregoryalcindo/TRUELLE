@@ -77,7 +77,7 @@ public final class FacturationScreen extends Screen {
         }
 
         p.contenu.addView(UiKit.libelle(a, "Intitulé", fLibelle), UiKit.pleineLargeur());
-        p.contenu.addView(UiKit.libelle(a, "Montant TTC", fMontant), UiKit.pleineLargeur());
+        p.contenu.addView(UiKit.libelle(a, "Montant TTC", UiKit.euro(a, fMontant)), UiKit.pleineLargeur());
 
         LinearLayout blocStatut = UiKit.colonne(a, 8);
         blocStatut.addView(UiKit.text(a, "Statut", 16, UiKit.ENCRE_2, false));

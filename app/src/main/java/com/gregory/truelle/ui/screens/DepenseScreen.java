@@ -122,7 +122,7 @@ public final class DepenseScreen extends Screen {
                     v -> photographier(fMontant, fFournisseur)), UiKit.pleineLargeur());
         }
 
-        p.contenu.addView(UiKit.libelle(a, "Montant TTC", fMontant), UiKit.pleineLargeur());
+        p.contenu.addView(UiKit.libelle(a, "Montant TTC", UiKit.euro(a, fMontant)), UiKit.pleineLargeur());
         LinearLayout duo = UiKit.ligne(a, 10);
         duo.setGravity(Gravity.TOP);
         duo.addView(UiKit.libelle(a, "Fournisseur", fFournisseur), UiKit.poids(1.4f));
@@ -262,7 +262,7 @@ public final class DepenseScreen extends Screen {
         String fichier = null;
         if (scan != null) {
             try {
-                fichier = store().importerFichier(chantierId, "Dépenses", scan.pdf, fournisseur, "pdf");
+                fichier = store().importerFichier(chantierId, "Dépenses", scan.pdf, com.gregory.truelle.data.NomsFichiers.depense(fournisseur, date, centimes), "pdf");
             } catch (Exception e) {
                 toast("La facture n'a pas pu être rangée : " + e.getMessage());
                 return;

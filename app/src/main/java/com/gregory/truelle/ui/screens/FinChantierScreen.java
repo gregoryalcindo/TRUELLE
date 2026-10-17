@@ -96,7 +96,7 @@ public final class FinChantierScreen extends Screen {
 
         boolean occupe = DOSSIER_CLIENT.equals(enCours);
         android.widget.Button creer = UiKit.boutonAction(a, occupe ? "Création…" : "Créer le récapitulatif", v ->
-                creer(DOSSIER_CLIENT, "recapitulatif-" + c.titre, () -> PdfFinChantier.generer(a.getCacheDir(), store(), c, RecapFin.construire(c, joindreFactures), entreprise)));
+                creer(DOSSIER_CLIENT, com.gregory.truelle.data.NomsFichiers.pdfRecapitulatif(c), () -> PdfFinChantier.generer(a.getCacheDir(), store(), c, RecapFin.construire(c, joindreFactures), entreprise)));
         creer.setEnabled(enCours == null);
         bloc.addView(creer, UiKit.pleineLargeur());
         historique(bloc, c, DOSSIER_CLIENT, "Récapitulatif de fin de chantier – ");
@@ -119,7 +119,7 @@ public final class FinChantierScreen extends Screen {
 
         boolean occupe = DOSSIER_FACTURES.equals(enCours);
         android.widget.Button creer = UiKit.boutonAction(a, occupe ? "Création…" : "Créer le dossier des factures", v ->
-                creer(DOSSIER_FACTURES, "factures-depenses-" + c.titre, () -> PdfFinChantier.genererDossierDepenses(a.getCacheDir(), store(), c, DossierDepenses.construire(c), entreprise)));
+                creer(DOSSIER_FACTURES, com.gregory.truelle.data.NomsFichiers.pdfFactures(c), () -> PdfFinChantier.genererDossierDepenses(a.getCacheDir(), store(), c, DossierDepenses.construire(c), entreprise)));
         creer.setEnabled(enCours == null && !d.sections.isEmpty());
         bloc.addView(creer, UiKit.pleineLargeur());
         historique(bloc, c, DOSSIER_FACTURES, "Factures des dépenses – ");

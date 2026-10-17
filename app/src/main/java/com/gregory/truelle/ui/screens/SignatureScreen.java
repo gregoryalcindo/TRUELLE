@@ -69,7 +69,7 @@ public final class SignatureScreen extends Screen {
                 try (FileOutputStream out = new FileOutputStream(tmp)) {
                     bmp.compress(Bitmap.CompressFormat.PNG, 100, out);
                 }
-                String chemin = store().importerFichier(chantierId, "Travaux en plus", tmp, "signature-" + t.get("description"), "png");
+                String chemin = store().importerFichier(chantierId, "Travaux en plus", tmp, com.gregory.truelle.data.NomsFichiers.signature(t.get("description")), "png");
                 //noinspection ResultOfMethodCallIgnored
                 tmp.delete();
                 Map<String, String> data = new LinkedHashMap<>();

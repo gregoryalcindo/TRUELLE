@@ -234,6 +234,21 @@ public final class UiKit {
         return e;
     }
 
+    /** Ajoute le signe € à droite, à l'intérieur d'un champ de montant. */
+    public static View euro(Context c, EditText champ) {
+        FrameLayout cadre = new FrameLayout(c);
+        champ.setPadding(champ.getPaddingLeft(), champ.getPaddingTop(), dp(c, 48), champ.getPaddingBottom());
+        cadre.addView(champ, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        TextView signe = text(c, "€", champ.getTextSize() / c.getResources().getDisplayMetrics().scaledDensity, ENCRE_2, false);
+        signe.setTypeface(champ.getTypeface());
+        signe.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.END | Gravity.CENTER_VERTICAL);
+        lp.setMarginEnd(dp(c, 16));
+        cadre.addView(signe, lp);
+        champ.setContentDescription("Montant en euros");
+        return cadre;
+    }
+
     /** Une rangée de boutons de choix exclusifs ({valeur, libellé}). La sélection est en noir. */
     public static LinearLayout choix(Context c, String[][] options, String selection, java.util.function.Consumer<String> onChoix) {
         LinearLayout row = ligne(c, 8);
