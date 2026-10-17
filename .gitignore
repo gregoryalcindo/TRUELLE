@@ -8,3 +8,7 @@ local.properties
 *.jks
 *.keystore
 keystore.properties
+
+# APK copie par BUILD_DEBUG.bat
+Truelle-debug.apk
+.tools/
