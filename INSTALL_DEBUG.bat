@@ -40,10 +40,10 @@ echo Appareils connectes :
 echo.
 
 for /f "skip=1 tokens=1,2" %%A in ('"%ADB%" devices') do (
-    if "%%B"=="device" set "DEVICE_FOUND=1"
+    if "%%B"=="device" if not defined SERIAL set "SERIAL=%%A"
 )
 
-if not defined DEVICE_FOUND (
+if not defined SERIAL (
     echo [ERREUR] Aucun appareil Android autorise detecte.
     echo.
     echo Verifiez :
@@ -54,8 +54,11 @@ if not defined DEVICE_FOUND (
     exit /b 1
 )
 
+rem Plusieurs appareils possibles (Pixel en USB, box TV en Wi-Fi...) : on cible le premier autorise.
+echo Appareil cible : %SERIAL%
+echo.
 echo Installation...
-"%ADB%" install -r "%APK%"
+"%ADB%" -s %SERIAL% install -r "%APK%"
 
 if errorlevel 1 (
     echo.
@@ -67,7 +70,7 @@ if errorlevel 1 (
 
 echo.
 echo Lancement de Truelle...
-"%ADB%" shell am start -n com.gregory.truelle/.MainActivity >nul
+"%ADB%" -s %SERIAL% shell am start -n com.gregory.truelle/.MainActivity >nul
 
 echo.
 echo ============================================================
