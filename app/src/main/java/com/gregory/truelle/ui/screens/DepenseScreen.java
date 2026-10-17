@@ -2,20 +2,27 @@ package com.gregory.truelle.ui.screens;
 
 import android.app.AlertDialog;
 import android.app.DatePickerDialog;
+import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.text.InputType;
 import android.util.TypedValue;
+import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.TextView;
 
 import com.gregory.truelle.MainActivity;
 import com.gregory.truelle.data.Chantier;
 import com.gregory.truelle.data.Event;
 import com.gregory.truelle.data.Money;
+import com.gregory.truelle.ui.Scanner;
 import com.gregory.truelle.ui.Screen;
 import com.gregory.truelle.ui.UiKit;
 
+import java.io.File;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Collections;
@@ -25,9 +32,10 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Écran 4 des maquettes : saisie d'une dépense (lot 1 : saisie manuelle ;
- * la photo du ticket avec lecture automatique arrive au lot 2).
- * Avec un identifiant de dépense, l'écran sert à la corriger ou la supprimer.
+ * Écran 4 des maquettes : la dépense.
+ * - Après une photo : la facture est affichée et les champs sont pré-remplis, on vérifie et on valide.
+ * - Sans photo : saisie à la main, avec un bouton pour photographier la facture.
+ * - Avec un identifiant de dépense : correction, ajout ou consultation de la facture, suppression.
  */
 public final class DepenseScreen extends Screen {
 
@@ -36,16 +44,27 @@ public final class DepenseScreen extends Screen {
     private final String chantierId;
     private final String depenseId;
 
+    /** Facture scannée, pas encore rangée dans le chantier. */
+    private Scanner.Facture scan;
+
     // Saisie en cours, gardée si l'écran est redessiné.
     private String montant;
     private String fournisseur;
     private String date;
     private String refacturer;
+    private long tvaCentimes = -1;
 
     public DepenseScreen(MainActivity a, String chantierId, String depenseId) {
         super(a);
         this.chantierId = chantierId;
         this.depenseId = depenseId;
+    }
+
+    /** Nouvelle dépense pré-remplie à partir d'une facture scannée. */
+    public static DepenseScreen avecFacture(MainActivity a, String chantierId, Scanner.Facture facture) {
+        DepenseScreen s = new DepenseScreen(a, chantierId, null);
+        s.scan = facture;
+        return s;
     }
 
     @Override
@@ -64,10 +83,12 @@ public final class DepenseScreen extends Screen {
             fournisseur = edition ? existante.fournisseur : "";
             date = edition && !existante.date.isEmpty() ? existante.date : FORMAT_DATE.format(new Date());
             refacturer = edition ? existante.refacturer : "auto";
+            tvaCentimes = edition ? existante.tvaCentimes : -1;
+            if (scan != null) completerAvecLecture();
         }
 
         Page p = new Page(a);
-        p.entete.addView(UiKit.retour(a, "Annuler", v -> a.retour()));
+        p.entete.addView(UiKit.retour(a, "Annuler", v -> annuler()));
         p.entete.addView(UiKit.titre(a, edition ? "Modifier la dépense" : "Nouvelle dépense", 30));
         if (c == null) return p.racine;
 
@@ -76,7 +97,7 @@ public final class DepenseScreen extends Screen {
         fMontant.setTextSize(TypedValue.COMPLEX_UNIT_SP, 30);
         fMontant.setMinHeight(dp(64));
         fMontant.setHint("0,00 €");
-        // Le clavier numérique de certains téléphones n'a que le point : on accepte aussi la virgule.
+        // Certains claviers numériques n'ont que le point : on accepte aussi la virgule.
         fMontant.setKeyListener(android.text.method.DigitsKeyListener.getInstance("0123456789,."));
         fMontant.setRawInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
 
@@ -87,51 +108,35 @@ public final class DepenseScreen extends Screen {
         fDate.setFocusable(false);
         fDate.setOnClickListener(v -> choisirDate(fDate));
 
+        // --- La facture : celle qu'on vient de scanner, celle déjà jointe, ou un bouton pour la photographier.
+        File factureJointe = edition ? store().fichier(chantierId, existante.fichier) : null;
+        if (scan != null) {
+            p.contenu.addView(blocFacture(scan.pdf, true, fMontant, fFournisseur), UiKit.pleineLargeur());
+        } else if (factureJointe != null) {
+            p.contenu.addView(blocFacture(factureJointe, false, fMontant, fFournisseur), UiKit.pleineLargeur());
+        } else {
+            p.contenu.addView(UiKit.boutonContour(a, edition ? "Ajouter la photo de la facture" : "Prendre la facture en photo",
+                    v -> photographier(fMontant, fFournisseur)), UiKit.pleineLargeur());
+        }
+
         p.contenu.addView(UiKit.libelle(a, "Montant TTC", fMontant), UiKit.pleineLargeur());
         LinearLayout duo = UiKit.ligne(a, 10);
-        duo.setGravity(android.view.Gravity.TOP);
+        duo.setGravity(Gravity.TOP);
         duo.addView(UiKit.libelle(a, "Fournisseur", fFournisseur), UiKit.poids(1.4f));
         duo.addView(UiKit.libelle(a, "Date", fDate), UiKit.poids(1f));
         p.contenu.addView(duo, UiKit.pleineLargeur());
 
+        if (tvaCentimes > 0) {
+            p.contenu.addView(UiKit.text(a, "TVA lue sur la facture : " + Money.format(tvaCentimes), 16, UiKit.ENCRE_2, false));
+        }
         p.contenu.addView(UiKit.text(a, "Chantier : " + c.titre + (c.client.isEmpty() ? "" : " · " + c.client), 16, UiKit.ENCRE_2, false));
 
         if (edition) {
-            // Niveau « poussé » : visible seulement quand on revient corriger une dépense.
+            // Niveau « poussé » : visible seulement quand on revient sur une dépense.
             p.contenu.addView(blocRefacturer(c, fMontant, fFournisseur), UiKit.pleineLargeur());
         }
 
-        p.ajouterAuPied(UiKit.boutonAction(a, "Valider", v -> {
-            garder(fMontant, fFournisseur);
-            long centimes = Money.parseCentimes(montant);
-            if (centimes <= 0) {
-                fMontant.setError("Indiquez un montant, par ex. 45,90");
-                fMontant.requestFocus();
-                return;
-            }
-            boolean ok;
-            if (!edition) {
-                Map<String, String> data = new LinkedHashMap<>();
-                data.put("montant_centimes", Long.toString(centimes));
-                data.put("fournisseur", fournisseur);
-                data.put("date", date);
-                data.put("refacturer", "auto");
-                ok = enregistrer(chantierId, Event.DEPENSE, data);
-            } else {
-                // On n'enregistre que ce qui a changé.
-                Map<String, String> data = new LinkedHashMap<>();
-                data.put("cible", existante.id);
-                if (centimes != existante.montantCentimes) data.put("montant_centimes", Long.toString(centimes));
-                if (!fournisseur.equals(existante.fournisseur)) data.put("fournisseur", fournisseur);
-                if (!date.equals(existante.date)) data.put("date", date);
-                if (!refacturer.equals(existante.refacturer)) data.put("refacturer", refacturer);
-                ok = data.size() == 1 || enregistrer(chantierId, Event.CORRECTION, data);
-            }
-            if (ok) {
-                toast("Dépense enregistrée ✓");
-                a.retour();
-            }
-        }));
+        p.ajouterAuPied(UiKit.boutonAction(a, "Valider", v -> valider(existante, fMontant, fFournisseur)));
 
         if (edition) {
             p.ajouterAuPied(UiKit.boutonContour(a, "Supprimer cette dépense", v -> new AlertDialog.Builder(a)
@@ -147,13 +152,146 @@ public final class DepenseScreen extends Screen {
                     .show()));
         } else if (montant.isEmpty()) {
             fMontant.requestFocus();
-            fMontant.post(() -> {
-                android.view.inputmethod.InputMethodManager imm =
-                        (android.view.inputmethod.InputMethodManager) a.getSystemService(android.content.Context.INPUT_METHOD_SERVICE);
-                if (imm != null) imm.showSoftInput(fMontant, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
-            });
+            if (scan == null) {
+                fMontant.post(() -> {
+                    android.view.inputmethod.InputMethodManager imm =
+                            (android.view.inputmethod.InputMethodManager) a.getSystemService(android.content.Context.INPUT_METHOD_SERVICE);
+                    if (imm != null) imm.showSoftInput(fMontant, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
+                });
+            }
         }
         return p.racine;
+    }
+
+    // ------------------------------------------------------------- facture
+
+    /** Aperçu de la facture + message de lecture + boutons « Voir » et « Reprendre ». */
+    private View blocFacture(File pdf, boolean nouvelle, EditText fMontant, EditText fFournisseur) {
+        LinearLayout bloc = UiKit.carte(a, 12);
+        bloc.setBackground(UiKit.rounded(UiKit.SURFACE, dp(16), 0, 0));
+
+        LinearLayout haut = UiKit.ligne(a, 14);
+        haut.setGravity(Gravity.TOP);
+        ImageView vignette = new ImageView(a);
+        vignette.setScaleType(ImageView.ScaleType.FIT_START);
+        vignette.setBackground(UiKit.rounded(UiKit.NEUTRE, dp(8), dp(1), UiKit.BORDURE));
+        vignette.setContentDescription("Aperçu de la facture, toucher pour l'ouvrir");
+        Bitmap bmp = Scanner.apercu(pdf, dp(96));
+        if (bmp != null) vignette.setImageBitmap(bmp);
+        vignette.setOnClickListener(v -> Scanner.ouvrir(a, pdf));
+        haut.addView(vignette, new LinearLayout.LayoutParams(dp(96), dp(128)));
+
+        LinearLayout textes = UiKit.colonne(a, 6);
+        if (nouvelle) {
+            boolean lu = scan.lu.montantTrouve();
+            TextView etat = UiKit.text(a, lu ? "✓ Facture lue" : "Facture enregistrée", 18, lu ? UiKit.VERT : UiKit.ENCRE, true);
+            textes.addView(etat);
+            textes.addView(UiKit.text(a, lu ? "Vérifiez le montant, puis validez." : "Le montant n'a pas pu être lu : saisissez-le.", 16, UiKit.ENCRE_2, false));
+        } else {
+            textes.addView(UiKit.text(a, "Facture jointe", 18, UiKit.ENCRE, true));
+            textes.addView(UiKit.text(a, "Toucher l'aperçu pour l'ouvrir.", 16, UiKit.ENCRE_2, false));
+        }
+        haut.addView(textes, UiKit.poids(1));
+        bloc.addView(haut, UiKit.pleineLargeur());
+
+        LinearLayout boutons = UiKit.ligne(a, 8);
+        boutons.addView(UiKit.boutonContour(a, "Voir", v -> Scanner.ouvrir(a, pdf)), UiKit.poids(1));
+        boutons.addView(UiKit.boutonContour(a, nouvelle ? "Reprendre" : "Remplacer", v -> photographier(fMontant, fFournisseur)), UiKit.poids(1.4f));
+        bloc.addView(boutons, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        return bloc;
+    }
+
+    private void photographier(EditText fMontant, EditText fFournisseur) {
+        garder(fMontant, fFournisseur);
+        a.scannerFacture(new Scanner.Callback() {
+            @Override
+            public void onFacture(Scanner.Facture facture) {
+                supprimerScanTemporaire();
+                scan = facture;
+                completerAvecLecture();
+                a.remplacer(DepenseScreen.this);
+            }
+
+            @Override
+            public void onAnnule() {
+            }
+
+            @Override
+            public void onErreur(String message) {
+                toast(message);
+            }
+        });
+    }
+
+    /** Remplit les champs encore vides avec ce que la lecture a trouvé (sans écraser une saisie). */
+    private void completerAvecLecture() {
+        if (scan == null) return;
+        if ((montant == null || montant.isEmpty()) && scan.lu.montantTrouve()) montant = Money.toInput(scan.lu.montantCentimes);
+        if ((fournisseur == null || fournisseur.isEmpty()) && scan.lu.fournisseur != null) fournisseur = scan.lu.fournisseur;
+        if (scan.lu.date != null) date = scan.lu.date;
+        if (scan.lu.tvaCentimes > 0) tvaCentimes = scan.lu.tvaCentimes;
+    }
+
+    private void supprimerScanTemporaire() {
+        if (scan != null && scan.pdf != null) {
+            //noinspection ResultOfMethodCallIgnored
+            scan.pdf.delete();
+        }
+    }
+
+    private void annuler() {
+        supprimerScanTemporaire();
+        scan = null;
+        a.retour();
+    }
+
+    // ------------------------------------------------------------- enregistrement
+
+    private void valider(Chantier.Depense existante, EditText fMontant, EditText fFournisseur) {
+        garder(fMontant, fFournisseur);
+        long centimes = Money.parseCentimes(montant);
+        if (centimes <= 0) {
+            fMontant.setError("Indiquez un montant, par ex. 45,90");
+            fMontant.requestFocus();
+            return;
+        }
+        String fichier = null;
+        if (scan != null) {
+            try {
+                fichier = store().importerFichier(chantierId, "Dépenses", scan.pdf, fournisseur, "pdf");
+            } catch (Exception e) {
+                toast("La facture n'a pas pu être rangée : " + e.getMessage());
+                return;
+            }
+        }
+        boolean ok;
+        if (existante == null) {
+            Map<String, String> data = new LinkedHashMap<>();
+            data.put("montant_centimes", Long.toString(centimes));
+            data.put("fournisseur", fournisseur);
+            data.put("date", date);
+            data.put("refacturer", "auto");
+            if (fichier != null) data.put("fichier", fichier);
+            if (tvaCentimes > 0) data.put("tva_centimes", Long.toString(tvaCentimes));
+            ok = enregistrer(chantierId, Event.DEPENSE, data);
+        } else {
+            // On n'enregistre que ce qui a changé.
+            Map<String, String> data = new LinkedHashMap<>();
+            data.put("cible", existante.id);
+            if (centimes != existante.montantCentimes) data.put("montant_centimes", Long.toString(centimes));
+            if (!fournisseur.equals(existante.fournisseur)) data.put("fournisseur", fournisseur);
+            if (!date.equals(existante.date)) data.put("date", date);
+            if (!refacturer.equals(existante.refacturer)) data.put("refacturer", refacturer);
+            if (fichier != null) data.put("fichier", fichier);
+            if (tvaCentimes != existante.tvaCentimes && tvaCentimes > 0) data.put("tva_centimes", Long.toString(tvaCentimes));
+            ok = data.size() == 1 || enregistrer(chantierId, Event.CORRECTION, data);
+        }
+        if (ok) {
+            supprimerScanTemporaire();
+            scan = null;
+            toast("Dépense enregistrée ✓");
+            a.retour();
+        }
     }
 
     private View blocRefacturer(Chantier c, EditText fMontant, EditText fFournisseur) {

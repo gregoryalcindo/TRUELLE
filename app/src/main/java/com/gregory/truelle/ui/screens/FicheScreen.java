@@ -106,7 +106,7 @@ public final class FicheScreen extends Screen {
             row.addView(UiKit.pastille(a, R.drawable.ic_receipt));
             titreLigne = d.fournisseur.isEmpty() ? "Dépense" : "Dépense · " + d.fournisseur;
             montant = Money.format(d.montantCentimes);
-            auteur = d.auteur;
+            auteur = d.auteur + (d.fichier.isEmpty() ? "" : (d.auteur.isEmpty() ? "" : " · ") + "facture jointe");
             row.setOnClickListener(v -> a.ouvrir(new DepenseScreen(a, c.id, d.id)));
         } else {
             Chantier.Note n = c.note(aj.id);

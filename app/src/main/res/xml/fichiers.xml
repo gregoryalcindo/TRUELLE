@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dossiers que Truelle peut partager avec la visionneuse PDF (lecture seule, à la demande). -->
+<paths>
+    <files-path name="chantiers" path="Chantiers/" />
+    <cache-path name="scans" path="." />
+</paths>

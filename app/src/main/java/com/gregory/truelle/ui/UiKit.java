@@ -44,6 +44,9 @@ public final class UiKit {
     public static final int GRIS = Color.parseColor("#3F444A");
     public static final int GRIS_FOND = Color.parseColor("#E2E0D9");
     public static final int ROUGE = Color.parseColor("#B91C1C");
+    /** Voile posé sous les panneaux (#991B1F23) et le même voile déjà mélangé au fond, pour les bords d'écran. */
+    public static final int VOILE = Color.parseColor("#991B1F23");
+    public static final int FOND_VOILE = Color.parseColor("#717373");
 
     public static final Typeface TITRE = Typeface.create("sans-serif-condensed", Typeface.BOLD);
 

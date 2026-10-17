@@ -30,8 +30,8 @@ Chaque envoi de code lance aussi la compilation sur GitHub (onglet **Actions** �
 ## Feuille de route
 | Lot | Contenu | État |
 |---|---|---|
-| 1 | Chantiers, statuts, dépenses et notes (saisie manuelle), journal local | en cours |
-| 2 | Photo du ticket (scanner ML Kit) + lecture automatique du montant | à faire |
+| 1 | Chantiers, statuts, dépenses et notes (saisie manuelle), journal local | fait |
+| 2 | Photo de facture (scanner ML Kit, galerie, multi-pages) + lecture du montant, TVA, date, fournisseur | en test |
 | 3 | Synchronisation Google Drive entre les deux téléphones | à faire |
 | 4 | Gérer le chantier : devis, travaux en plus, réglages, rentabilité | à faire |
 | 5 | PDF de fin de chantier | à faire |

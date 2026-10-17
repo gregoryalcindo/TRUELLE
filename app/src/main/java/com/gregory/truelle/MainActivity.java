@@ -7,6 +7,9 @@ import android.view.inputmethod.InputMethodManager;
 import android.widget.FrameLayout;
 
 import androidx.activity.OnBackPressedCallback;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.IntentSenderRequest;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
@@ -15,6 +18,8 @@ import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 
 import com.gregory.truelle.data.LocalStore;
+import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult;
+import com.gregory.truelle.ui.Scanner;
 import com.gregory.truelle.ui.Screen;
 import com.gregory.truelle.ui.UiKit;
 import com.gregory.truelle.ui.screens.AuteurScreen;
@@ -33,6 +38,8 @@ public class MainActivity extends AppCompatActivity {
     private final List<Screen> pile = new ArrayList<>();
     private FrameLayout conteneur;
     private LocalStore store;
+    private ActivityResultLauncher<IntentSenderRequest> lanceurScan;
+    private Scanner.Callback scanEnCours;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -43,6 +50,20 @@ public class MainActivity extends AppCompatActivity {
         ctl.setAppearanceLightNavigationBars(true);
 
         store = new LocalStore(new File(getFilesDir(), "Chantiers"));
+
+        // Retour du scanner de documents (doit être déclaré dès la création de l'activité).
+        lanceurScan = registerForActivityResult(new ActivityResultContracts.StartIntentSenderForResult(), res -> {
+            Scanner.Callback cb = scanEnCours;
+            scanEnCours = null;
+            if (cb == null) return;
+            if (res.getResultCode() != RESULT_OK || res.getData() == null) {
+                cb.onAnnule();
+                return;
+            }
+            GmsDocumentScanningResult r = GmsDocumentScanningResult.fromActivityResultIntent(res.getData());
+            if (r == null) cb.onErreur("Le scan n'a pas pu être lu");
+            else Scanner.traiter(this, r, cb);
+        });
 
         conteneur = new FrameLayout(this);
         conteneur.setBackgroundColor(UiKit.FOND);
@@ -85,6 +106,29 @@ public class MainActivity extends AppCompatActivity {
         prefs().edit().putString(KEY_AUTEUR, nom.trim()).apply();
     }
 
+    /** Ouvre le scanner de factures ; le résultat arrive dans le callback. */
+    public void scannerFacture(Scanner.Callback cb) {
+        scanEnCours = cb;
+        Scanner.lancer(this, lanceurScan, new Scanner.Callback() {
+            @Override
+            public void onFacture(Scanner.Facture facture) {
+                cb.onFacture(facture);
+            }
+
+            @Override
+            public void onAnnule() {
+                scanEnCours = null;
+                cb.onAnnule();
+            }
+
+            @Override
+            public void onErreur(String message) {
+                scanEnCours = null;
+                cb.onErreur(message);
+            }
+        });
+    }
+
     private SharedPreferences prefs() {
         return getSharedPreferences(PREFS, MODE_PRIVATE);
     }
@@ -119,7 +163,10 @@ public class MainActivity extends AppCompatActivity {
         cacherClavier();
         conteneur.removeAllViews();
         Screen haut = pile.get(pile.size() - 1);
-        if (haut.estSuperpose() && pile.size() > 1) {
+        boolean superpose = haut.estSuperpose() && pile.size() > 1;
+        // Sous un panneau, les bandes de la barre d'état et de navigation prennent la teinte du voile.
+        conteneur.setBackgroundColor(superpose ? UiKit.FOND_VOILE : UiKit.FOND);
+        if (superpose) {
             conteneur.addView(pile.get(pile.size() - 2).build());
         }
         conteneur.addView(haut.build());

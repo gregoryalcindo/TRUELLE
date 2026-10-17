@@ -45,6 +45,10 @@ public final class Chantier {
         public String date;
         /** "auto" = suit le mode du chantier, "oui" / "non" = choix forcé sur cette dépense. */
         public String refacturer;
+        /** Chemin de la facture dans le dossier du chantier (ex. « Dépenses/2026…pdf »), vide si aucune. */
+        public String fichier = "";
+        /** TVA lue sur la facture, -1 si inconnue. */
+        public long tvaCentimes = -1;
         public final String auteur;
         public final long creeLe;
 
@@ -117,6 +121,8 @@ public final class Chantier {
                 d.fournisseur = e.get("fournisseur", "");
                 d.date = e.get("date", "");
                 d.refacturer = e.get("refacturer", "auto");
+                d.fichier = e.get("fichier", "");
+                d.tvaCentimes = parseLong(e.get("tva_centimes"), -1);
                 depenses.put(e.id, d);
                 break;
             }
@@ -158,6 +164,8 @@ public final class Chantier {
             if (e.get("fournisseur") != null) d.fournisseur = e.get("fournisseur");
             if (e.get("date") != null) d.date = e.get("date");
             if (e.get("refacturer") != null) d.refacturer = e.get("refacturer");
+            if (e.get("fichier") != null) d.fichier = e.get("fichier");
+            if (e.get("tva_centimes") != null) d.tvaCentimes = parseLong(e.get("tva_centimes"), d.tvaCentimes);
             return;
         }
         Note n = notes.get(cible);

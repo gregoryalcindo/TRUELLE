@@ -80,6 +80,43 @@ public final class LocalStore {
         writeEvent(dir, event);
     }
 
+    /**
+     * Copie un fichier (facture scannée…) dans un sous-dossier du chantier.
+     * Le nom commence par la date et l'heure pour un classement naturel dans Drive.
+     * Retourne le chemin relatif au dossier du chantier, à enregistrer dans le journal.
+     */
+    public synchronized String importerFichier(String chantierId, String sousDossier, File source, String libelle, String extension) throws IOException {
+        File dir = dossierDe(chantierId);
+        if (dir == null) throw new IOException("Chantier introuvable : " + chantierId);
+        File cible = new File(dir, sousDossier);
+        mkdirs(cible);
+        String stamp = new java.text.SimpleDateFormat("yyyyMMdd-HHmmss", java.util.Locale.FRANCE).format(new java.util.Date());
+        String nom = nettoyer(libelle).replace(' ', '-');
+        String base = stamp + (nom.isEmpty() ? "" : "_" + nom) + "_" + UUID.randomUUID().toString().substring(0, 6);
+        File dest = new File(cible, base + "." + extension);
+        File tmp = new File(cible, "." + dest.getName() + ".tmp");
+        try (InputStream in = new FileInputStream(source); OutputStream out = new FileOutputStream(tmp)) {
+            byte[] buf = new byte[64 * 1024];
+            int n;
+            while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+        }
+        if (!tmp.renameTo(dest)) {
+            //noinspection ResultOfMethodCallIgnored
+            tmp.delete();
+            throw new IOException("Impossible d'enregistrer " + dest.getName());
+        }
+        return sousDossier + "/" + dest.getName();
+    }
+
+    /** Le fichier réel correspondant à un chemin relatif enregistré dans le journal, ou null. */
+    public synchronized File fichier(String chantierId, String cheminRelatif) {
+        if (cheminRelatif == null || cheminRelatif.isEmpty() || cheminRelatif.contains("..")) return null;
+        File dir = dossierDe(chantierId);
+        if (dir == null) return null;
+        File f = new File(dir, cheminRelatif);
+        return f.exists() ? f : null;
+    }
+
     public synchronized Chantier charger(String chantierId) {
         File dir = dossierDe(chantierId);
         return dir == null ? null : lireChantier(dir, chantierId);

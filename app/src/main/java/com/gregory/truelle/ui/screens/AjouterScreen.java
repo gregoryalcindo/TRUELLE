@@ -11,6 +11,7 @@ import android.widget.TextView;
 import com.gregory.truelle.MainActivity;
 import com.gregory.truelle.R;
 import com.gregory.truelle.data.Chantier;
+import com.gregory.truelle.ui.Scanner;
 import com.gregory.truelle.ui.Screen;
 import com.gregory.truelle.ui.UiKit;
 
@@ -37,7 +38,7 @@ public final class AjouterScreen extends Screen {
         Chantier c = store().charger(chantierId);
 
         FrameLayout voile = new FrameLayout(a);
-        voile.setBackgroundColor(Color.parseColor("#991B1F23"));
+        voile.setBackgroundColor(UiKit.VOILE);
         voile.setClickable(true);
         voile.setOnClickListener(v -> a.retour());
         voile.setLayoutParams(new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
@@ -65,15 +66,33 @@ public final class AjouterScreen extends Screen {
         if (c != null) panneau.addView(UiKit.text(a, c.titre + (c.client.isEmpty() ? "" : " · " + c.client), 18, UiKit.ENCRE_2, false));
 
         LinearLayout tuiles = UiKit.ligne(a, 12);
+        // Dépense = photo de la facture d'abord. Si on annule la photo, on passe à la saisie à la main.
         tuiles.addView(tuile("Dépense", R.drawable.ic_receipt, true, v -> {
             a.retour();
-            a.ouvrir(new DepenseScreen(a, chantierId, null));
+            a.scannerFacture(new Scanner.Callback() {
+                @Override
+                public void onFacture(Scanner.Facture facture) {
+                    a.ouvrir(DepenseScreen.avecFacture(a, chantierId, facture));
+                }
+
+                @Override
+                public void onAnnule() {
+                    a.ouvrir(new DepenseScreen(a, chantierId, null));
+                }
+
+                @Override
+                public void onErreur(String message) {
+                    toast(message);
+                    a.ouvrir(new DepenseScreen(a, chantierId, null));
+                }
+            });
         }), new LinearLayout.LayoutParams(0, dp(150), 1f));
         tuiles.addView(tuile("Note", R.drawable.ic_note, false, v -> {
             a.retour();
             a.ouvrir(new NoteScreen(a, chantierId, null));
         }), new LinearLayout.LayoutParams(0, dp(150), 1f));
         panneau.addView(tuiles, UiKit.pleineLargeur());
+        panneau.addView(UiKit.text(a, "Dépense : photo de la facture ou du ticket, le montant est lu tout seul.", 15, UiKit.ENCRE_2, false));
 
         voile.addView(panneau, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM));
         return voile;
@@ -89,7 +108,8 @@ public final class AjouterScreen extends Screen {
         t.addView(UiKit.icone(a, icone, couleur, 48));
         TextView tv = UiKit.titre(a, label, 22);
         tv.setTextColor(couleur);
-        t.addView(tv);
+        tv.setGravity(Gravity.CENTER);
+        t.addView(tv, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         t.setOnClickListener(l);
         return t;
     }
