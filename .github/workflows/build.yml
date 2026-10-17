@@ -21,7 +21,7 @@ jobs:
         run: |
           set -o pipefail
           ./gradlew testDebugUnitTest 2>&1 | tee test.log || {
-            msg=$( (grep -A 25 "What went wrong" test.log; grep -E "FAILED|error:" test.log) | head -60 | sed ':a;N;$!ba;s/%/%25/g;s/\n/%0A/g')
+            msg=$( (grep -A 25 "What went wrong" test.log; grep -E "FAILED|error:" test.log; echo "--- fin du journal ---"; tail -40 test.log) | head -120 | sed ':a;N;$!ba;s/%/%25/g;s/\n/%0A/g')
             echo "::error title=Tests::$msg"
             exit 1
           }
@@ -30,7 +30,7 @@ jobs:
         run: |
           set -o pipefail
           ./gradlew assembleDebug 2>&1 | tee build.log || {
-            msg=$( (grep -A 25 "What went wrong" build.log; grep -E "error:|ERROR:" build.log) | head -60 | sed ':a;N;$!ba;s/%/%25/g;s/\n/%0A/g')
+            msg=$( (grep -A 25 "What went wrong" build.log; grep -E "error:|ERROR:" build.log; echo "--- fin du journal ---"; tail -40 build.log) | head -120 | sed ':a;N;$!ba;s/%/%25/g;s/\n/%0A/g')
             echo "::error title=Compilation::$msg"
             exit 1
           }
