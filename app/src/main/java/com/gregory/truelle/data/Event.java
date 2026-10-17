@@ -25,6 +25,8 @@ public final class Event {
     public static final String DEVIS = "devis";
     public static final String TRAVAUX = "travaux";
     public static final String FACTURATION = "facturation";
+    /** Infos de l'entreprise (nom, adresse, SIRET…), dans le journal de _App/. */
+    public static final String ENTREPRISE = "entreprise";
 
     public final String id;
     public final String type;
@@ -62,7 +64,7 @@ public final class Event {
     /** Nom du fichier dans journal/ : date, heure, type et début de l'identifiant. Trié naturellement par date. */
     public String fileName() {
         String stamp = new SimpleDateFormat("yyyyMMdd-HHmmss", Locale.FRANCE).format(new Date(at));
-        return stamp + "_" + type + "_" + id.substring(0, 8) + ".json";
+        return stamp + "_" + type + "_" + (id.length() > 8 ? id.substring(0, 8) : id) + ".json";
     }
 
     public String toJson() {

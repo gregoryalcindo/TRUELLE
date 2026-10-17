@@ -31,6 +31,11 @@ public abstract class Screen {
         return true;
     }
 
+    /** Vrai pour les écrans qui affichent l'état de la synchro (redessinés quand il change). */
+    public boolean suitLaSynchro() {
+        return false;
+    }
+
     protected Context ctx() {
         return a;
     }
@@ -51,6 +56,7 @@ public abstract class Screen {
     protected boolean enregistrer(String chantierId, String type, Map<String, String> data) {
         try {
             store().ajouter(chantierId, Event.create(type, chantierId, a.auteur(), data));
+            a.apresEnregistrement();
             return true;
         } catch (Exception e) {
             toast("Enregistrement impossible : " + e.getMessage());

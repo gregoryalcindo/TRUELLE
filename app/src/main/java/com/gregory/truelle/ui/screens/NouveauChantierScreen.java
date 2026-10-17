@@ -76,6 +76,7 @@ public final class NouveauChantierScreen extends Screen {
             }
             try {
                 Chantier c = store().creerChantier(titre, client, adresse, mode, a.auteur());
+                a.apresEnregistrement();
                 toast("Chantier créé ✓");
                 a.remplacer(new FicheScreen(a, c.id));
             } catch (Exception e) {

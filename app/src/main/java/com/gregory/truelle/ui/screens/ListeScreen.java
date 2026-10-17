@@ -31,11 +31,17 @@ public final class ListeScreen extends Screen {
     }
 
     @Override
+    public boolean suitLaSynchro() {
+        return true;
+    }
+
+    @Override
     public View build() {
         Page p = new Page(a);
         String date = new SimpleDateFormat("EEEE d MMMM", Locale.FRANCE).format(new Date());
         p.entete.addView(UiKit.text(a, Character.toUpperCase(date.charAt(0)) + date.substring(1), 18, UiKit.ENCRE_2, false));
         p.entete.addView(UiKit.titre(a, "Mes chantiers", 36));
+        p.entete.addView(etatDrive());
 
         List<Chantier> tous = store().chantiers();
         p.entete.addView(filtres(tous));
@@ -53,8 +59,33 @@ public final class ListeScreen extends Screen {
         }
         for (Chantier c : visibles) p.contenu.addView(carte(c), UiKit.pleineLargeur());
 
+        TextView reglages = UiKit.text(a, "Réglages de l'appli (entreprise, Drive) ›", 16, UiKit.ENCRE, true);
+        reglages.setPadding(0, dp(18), 0, dp(6));
+        reglages.setMinHeight(dp(48));
+        reglages.setClickable(true);
+        reglages.setOnClickListener(v -> a.ouvrir(new AppReglagesScreen(a)));
+        p.contenu.addView(reglages);
+
         p.ajouterAuPied(UiKit.boutonAction(a, "+ Nouveau chantier", v -> a.ouvrir(new NouveauChantierScreen(a))));
         return p.racine;
+    }
+
+    /** État de la synchro Drive ; un toucher connecte ou relance la synchro. */
+    private View etatDrive() {
+        com.gregory.truelle.sync.SyncManager sync = a.sync();
+        com.gregory.truelle.sync.SyncManager.Etat e = sync.etat();
+        boolean action = e == com.gregory.truelle.sync.SyncManager.Etat.NON_CONNECTE || e == com.gregory.truelle.sync.SyncManager.Etat.RECONNEXION
+                || e == com.gregory.truelle.sync.SyncManager.Etat.ERREUR;
+        int couleur = e == com.gregory.truelle.sync.SyncManager.Etat.ERREUR ? UiKit.ROUGE : action ? UiKit.ACTION : UiKit.ENCRE_2;
+        TextView t = UiKit.text(a, sync.resume(), 16, couleur, action);
+        t.setMinHeight(dp(36));
+        t.setGravity(Gravity.CENTER_VERTICAL);
+        t.setClickable(true);
+        t.setOnClickListener(v -> {
+            if (!sync.connecte() || sync.etat() == com.gregory.truelle.sync.SyncManager.Etat.RECONNEXION) a.connecterDrive();
+            else sync.synchroniser(true);
+        });
+        return t;
     }
 
     private View filtres(List<Chantier> tous) {

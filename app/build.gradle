@@ -10,8 +10,8 @@ android {
         applicationId 'com.gregory.truelle'
         minSdk 29
         targetSdk 36
-        versionCode 3
-        versionName '0.3.0-lot4'
+        versionCode 4
+        versionName '0.5.0'
     }
 
     buildTypes {
@@ -33,5 +33,7 @@ dependencies {
     // Lot 2 : scanner de documents de Google (via les services Google Play) et lecture du texte sur le téléphone.
     implementation 'com.google.android.gms:play-services-mlkit-document-scanner:16.0.0-beta1'
     implementation 'com.google.mlkit:text-recognition:16.0.1'
+    // Lot 3 : autorisation Google pour Drive (même bibliothèque et même méthode que VYDEL).
+    implementation 'com.google.android.gms:play-services-auth:21.6.0'
     testImplementation 'junit:junit:4.13.2'
 }

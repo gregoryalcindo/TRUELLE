@@ -144,6 +144,7 @@ public final class TravauxScreen extends Screen {
             Event e = Event.create(Event.TRAVAUX, chantierId, a.auteur(), data);
             try {
                 store().ajouter(chantierId, e);
+                a.apresEnregistrement();
                 return e.id;
             } catch (Exception ex) {
                 toast("Enregistrement impossible : " + ex.getMessage());

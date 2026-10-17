@@ -19,6 +19,7 @@ import androidx.core.view.WindowInsetsControllerCompat;
 
 import com.gregory.truelle.data.LocalStore;
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult;
+import com.gregory.truelle.sync.SyncManager;
 import com.gregory.truelle.ui.Scanner;
 import com.gregory.truelle.ui.Screen;
 import com.gregory.truelle.ui.UiKit;
@@ -41,6 +42,8 @@ public class MainActivity extends AppCompatActivity {
     private ActivityResultLauncher<IntentSenderRequest> lanceurScan;
     private Scanner.Callback scanEnCours;
     private ActivityResultLauncher<String[]> lanceurFichier;
+    private ActivityResultLauncher<IntentSenderRequest> lanceurGoogle;
+    private SyncManager sync;
     private FichierCallback fichierEnCours;
 
     /** Fichier choisi dans le téléphone (PDF reçu par mail, photo…), copié dans le cache. */
@@ -70,6 +73,21 @@ public class MainActivity extends AppCompatActivity {
             GmsDocumentScanningResult r = GmsDocumentScanningResult.fromActivityResultIntent(res.getData());
             if (r == null) cb.onErreur("Le scan n'a pas pu être lu");
             else Scanner.traiter(this, r, cb);
+        });
+
+        // Synchronisation Google Drive.
+        sync = SyncManager.get(this, store.root());
+        sync.setEcouteur((etat, recus) -> {
+            if (pile.isEmpty()) return;
+            Screen haut = pile.get(pile.size() - 1);
+            if (haut.rafraichirAuRetour() && (recus > 0 || haut.suitLaSynchro())) afficher();
+            if (etat == SyncManager.Etat.ERREUR && !sync.message().isEmpty() && haut.suitLaSynchro()) {
+                android.widget.Toast.makeText(this, sync.message(), android.widget.Toast.LENGTH_LONG).show();
+            }
+        });
+        lanceurGoogle = registerForActivityResult(new ActivityResultContracts.StartIntentSenderForResult(), res -> {
+            if (res.getResultCode() == RESULT_OK && res.getData() != null) sync.resultatConnexion(this, res.getData());
+            else android.widget.Toast.makeText(this, "Connexion Google annulée", android.widget.Toast.LENGTH_SHORT).show();
         });
 
         // Choix d'un fichier existant (devis PDF reçu d'un sous-traitant, par exemple).
@@ -121,6 +139,7 @@ public class MainActivity extends AppCompatActivity {
         super.onResume();
         // Au retour dans l'appli, on rafraîchit les listes, mais jamais un formulaire en cours de saisie.
         if (!pile.isEmpty() && pile.get(pile.size() - 1).rafraichirAuRetour()) afficher();
+        sync.demander(500);
     }
 
     public LocalStore store() {
@@ -156,6 +175,20 @@ public class MainActivity extends AppCompatActivity {
                 cb.onErreur(message);
             }
         });
+    }
+
+    public SyncManager sync() {
+        return sync;
+    }
+
+    /** Connexion au compte Google de l'entreprise (écran Google de choix du compte). */
+    public void connecterDrive() {
+        sync.connecter(this, pi -> lanceurGoogle.launch(new IntentSenderRequest.Builder(pi.getIntentSender()).build()));
+    }
+
+    /** À appeler après chaque enregistrement : la synchro part quelques secondes plus tard. */
+    public void apresEnregistrement() {
+        sync.demander(4000);
     }
 
     /** Ouvre le sélecteur de fichiers du téléphone (PDF et images). */

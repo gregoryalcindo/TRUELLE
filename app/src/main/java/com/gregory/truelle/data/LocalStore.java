@@ -117,6 +117,32 @@ public final class LocalStore {
         return f.exists() ? f : null;
     }
 
+    // ---------------------------------------------------------------- infos de l'entreprise (_App/journal)
+
+    /** Enregistre une modification des infos de l'entreprise (même principe : un fichier, jamais modifié). */
+    public synchronized void ajouterApp(Event event) throws IOException {
+        writeEvent(new File(root, APP_DIR), event);
+    }
+
+    /** Infos de l'entreprise : chaque champ prend sa dernière valeur enregistrée. */
+    public synchronized Map<String, String> entreprise() {
+        List<Event> events = new ArrayList<>();
+        File[] files = new File(new File(root, APP_DIR), JOURNAL_DIR).listFiles((d, name) -> name.endsWith(".json"));
+        if (files != null) {
+            for (File f : files) {
+                try {
+                    Event e = Event.fromJson(read(f));
+                    if (Event.ENTREPRISE.equals(e.type)) events.add(e);
+                } catch (Exception ignored) {
+                }
+            }
+        }
+        events.sort(Chantier.ORDER);
+        Map<String, String> infos = new LinkedHashMap<>();
+        for (Event e : events) infos.putAll(e.data());
+        return infos;
+    }
+
     public synchronized Chantier charger(String chantierId) {
         File dir = dossierDe(chantierId);
         return dir == null ? null : lireChantier(dir, chantierId);
