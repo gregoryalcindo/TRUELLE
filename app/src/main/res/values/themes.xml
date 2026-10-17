@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="fond">#F2F1EC</color>
+    <color name="action">#C2410C</color>
+    <color name="encre">#1B1F23</color>
+
+    <style name="Theme.Truelle" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="android:windowBackground">@color/fond</item>
+        <item name="colorPrimary">@color/encre</item>
+        <item name="colorPrimaryDark">@color/encre</item>
+        <item name="colorAccent">@color/action</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+</resources>

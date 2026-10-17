@@ -1,0 +1,94 @@
+package com.gregory.truelle.ui.screens;
+
+import android.graphics.Color;
+import android.text.InputType;
+import android.view.View;
+import android.widget.EditText;
+import android.widget.LinearLayout;
+
+import com.gregory.truelle.MainActivity;
+import com.gregory.truelle.data.Chantier;
+import com.gregory.truelle.ui.Screen;
+import com.gregory.truelle.ui.UiKit;
+
+/** Création d'un chantier : travaux, client, adresse, et mode de facturation du matériel. */
+public final class NouveauChantierScreen extends Screen {
+
+    private String mode = Chantier.MODE_FORFAIT;
+    private String titre = "";
+    private String client = "";
+    private String adresse = "";
+
+    public NouveauChantierScreen(MainActivity a) {
+        super(a);
+    }
+
+    @Override
+    public boolean rafraichirAuRetour() {
+        return false;
+    }
+
+    @Override
+    public View build() {
+        Page p = new Page(a);
+        p.entete.addView(UiKit.retour(a, "Annuler", v -> a.retour()));
+        p.entete.addView(UiKit.titre(a, "Nouveau chantier", 32));
+
+        EditText fTitre = UiKit.champTexte(a, titre);
+        fTitre.setHint("Ex. : Salle de bain");
+        EditText fClient = UiKit.champ(a, client, InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
+        fClient.setHint("Nom du client");
+        EditText fAdresse = UiKit.champ(a, adresse, InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_POSTAL_ADDRESS | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
+        fAdresse.setHint("Adresse du chantier");
+
+        p.contenu.addView(UiKit.libelle(a, "Travaux", fTitre), UiKit.pleineLargeur());
+        p.contenu.addView(UiKit.libelle(a, "Client", fClient), UiKit.pleineLargeur());
+        p.contenu.addView(UiKit.libelle(a, "Adresse", fAdresse), UiKit.pleineLargeur());
+
+        // Mode du matériel : la sélection est en noir, comme partout dans l'appli.
+        LinearLayout blocMode = UiKit.colonne(a, 8);
+        blocMode.addView(UiKit.text(a, "Matériel", 16, UiKit.ENCRE_2, false));
+        LinearLayout choix = UiKit.ligne(a, 8);
+        View.OnClickListener reel = v -> {
+            garder(fTitre, fClient, fAdresse);
+            mode = Chantier.MODE_REEL;
+            a.remplacer(this);
+        };
+        View.OnClickListener forfait = v -> {
+            garder(fTitre, fClient, fAdresse);
+            mode = Chantier.MODE_FORFAIT;
+            a.remplacer(this);
+        };
+        choix.addView(UiKit.boutonChoix(a, "Refacturé au réel", Chantier.MODE_REEL.equals(mode), UiKit.ENCRE, Color.WHITE, reel), UiKit.poids(1));
+        choix.addView(UiKit.boutonChoix(a, "Inclus au forfait", Chantier.MODE_FORFAIT.equals(mode), UiKit.ENCRE, Color.WHITE, forfait), UiKit.poids(1));
+        blocMode.addView(choix, UiKit.pleineLargeur());
+        blocMode.addView(UiKit.text(a, Chantier.MODE_REEL.equals(mode)
+                ? "Les factures fournisseurs pourront être jointes au PDF client."
+                : "Les dépenses restent internes : elles servent à la rentabilité.", 15, UiKit.ENCRE_2, false));
+        p.contenu.addView(blocMode, UiKit.pleineLargeur());
+
+        p.ajouterAuPied(UiKit.boutonAction(a, "Créer le chantier", v -> {
+            garder(fTitre, fClient, fAdresse);
+            if (titre.isEmpty()) {
+                fTitre.setError("Indiquez les travaux");
+                fTitre.requestFocus();
+                return;
+            }
+            try {
+                Chantier c = store().creerChantier(titre, client, adresse, mode, a.auteur());
+                toast("Chantier créé ✓");
+                a.remplacer(new FicheScreen(a, c.id));
+            } catch (Exception e) {
+                toast("Création impossible : " + e.getMessage());
+            }
+        }));
+        if (titre.isEmpty()) fTitre.requestFocus();
+        return p.racine;
+    }
+
+    private void garder(EditText t, EditText c, EditText ad) {
+        titre = t.getText().toString().trim();
+        client = c.getText().toString().trim();
+        adresse = ad.getText().toString().trim();
+    }
+}

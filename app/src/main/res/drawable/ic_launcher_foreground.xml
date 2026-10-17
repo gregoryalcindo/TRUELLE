@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Une truelle stylisée : lame en losange + manche. Zone utile centrée dans 108 dp. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,30 L72,52 L54,64 L36,52 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M51.5,64 L56.5,64 L56.5,70 L51.5,70 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M49,70 L59,70 Q61,70 61,72 L61,80 Q61,82 59,82 L49,82 Q47,82 47,80 L47,72 Q47,70 49,70 Z" />
+</vector>
