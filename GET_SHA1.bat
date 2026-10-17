@@ -32,13 +32,16 @@ if not exist "%KS%" (
 echo Keystore : %KS%
 echo.
 echo ------------------------------------------------------------
-"%KEYTOOL%" -list -v -keystore "%KS%" -alias androiddebugkey -storepass android -keypass android | findstr /c:"SHA1" /c:"SHA-1"
+rem Sortie complete (comme VYDEL) : la ligne utile commence par SHA1, quelle que soit la langue de Java.
+"%KEYTOOL%" -list -v -keystore "%KS%" -alias androiddebugkey -storepass android -keypass android
 echo ------------------------------------------------------------
 echo.
 echo A copier dans Google Cloud :
 echo   Google Auth Platform ^> Clients ^> Creer un client ^> Android
 echo   Nom du package : com.gregory.truelle
-echo   Empreinte SHA-1 : la valeur ci-dessus (format AA:BB:CC:...)
+echo   Empreinte SHA-1 : la ligne "SHA1:" ci-dessus (format AA:BB:CC:...)
+echo.
+echo Si rien ne s'affiche, depuis ce dossier : gradlew.bat signingReport
 echo.
 echo Attention : cette empreinte vaut pour les APK compiles sur CE PC.
 echo L'APK compile par GitHub a une autre cle : la connexion Drive n'y marchera pas.
