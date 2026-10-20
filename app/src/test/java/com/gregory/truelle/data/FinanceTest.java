@@ -1,6 +1,8 @@
 package com.gregory.truelle.data;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -189,6 +191,34 @@ public class FinanceTest {
         assertEquals(5000, f.c.avancementBp);
         assertEquals(0, f.tvaDeductible());
         assertEquals(380000, f.venduHt());                       // CA hors TVA facturée
+    }
+
+    @Test
+    public void entreProches_mainOeuvreAuForfait() {
+        add("c", Event.CHANTIER_CREE, "titre", "Cuisine du neveu", "type", "proches", "mo_mode", "forfait", "forfait_mo_centimes", "80000");
+        add("e1", Event.DEPENSE, "montant_centimes", "45900", "categorie", "materiel");
+        add("h1", Event.HEURES, "heures_centiemes", "1600");
+        add("h2", Event.HEURES, "heures_centiemes", "400", "taux_centimes", "3000");   // ignoré au forfait
+        Finance f = new Finance(Chantier.replay("c1", ev), new Reglages());
+        assertTrue(f.c.moAuForfait());
+        assertEquals(80000, f.mainOeuvreDue());                  // forfait, quelles que soient les heures
+        assertEquals(0, f.coutHeure(f.c.heures().get(0)));
+        assertEquals(4000, f.tauxEquivalentForfait());           // 800 € / 20 h = 40 €/h
+        assertEquals(125900, f.venduHt());
+        RecapFin r = RecapFin.construire(f, false);
+        assertEquals(125900, r.totalTtc);
+        RecapFin.Section mo = r.sections.get(r.sections.size() - 1);
+        assertEquals(1, mo.lignes.size());
+        assertEquals(80000, mo.total);
+
+        // Sans choix ni taux : forfait par défaut. Avec un taux réglé (anciens chantiers) : à l'heure.
+        ev.clear();
+        add("c", Event.CHANTIER_CREE, "titre", "T", "type", "proches");
+        assertTrue(Chantier.replay("c1", ev).moAuForfait());
+        add("m", Event.CHANTIER_MODIFIE, "taux_convenu_centimes", "2000");
+        assertFalse(Chantier.replay("c1", ev).moAuForfait());
+        add("m2", Event.CHANTIER_MODIFIE, "mo_mode", "forfait");
+        assertTrue(Chantier.replay("c1", ev).moAuForfait());
     }
 
     @Test

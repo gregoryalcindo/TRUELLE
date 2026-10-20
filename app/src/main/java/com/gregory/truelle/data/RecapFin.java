@@ -119,7 +119,12 @@ public final class RecapFin {
 
         if (f.proches()) {
             Section mo = new Section("Main d'œuvre");
-            for (Chantier.Heure h : c.heures()) {
+            if (c.moAuForfait()) {
+                if (c.forfaitMoCentimes > 0) {
+                    long hc = f.totalHeuresCentiemes();
+                    mo.ajouter("Main d'œuvre au forfait", hc > 0 ? Heures.format(hc) + " de travail" : "", c.forfaitMoCentimes);
+                }
+            } else for (Chantier.Heure h : c.heures()) {
                 String detail = (h.date.isEmpty() ? "" : h.date + " · ") + Heures.format(h.heuresCentiemes) + " × " + Money.format(f.tauxHeure(h))
                         + (h.personne.isEmpty() ? "" : " · " + h.personne);
                 mo.ajouter(h.note.isEmpty() ? "Travail" : h.note, detail, f.coutHeure(h));

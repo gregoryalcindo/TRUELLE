@@ -40,6 +40,13 @@ public final class Chantier {
     public String type = TYPE_PRO;
     /** Entre proches : taux horaire convenu pour la main d'œuvre (centimes). */
     public long tauxConvenuCentimes = 0;
+    /** Entre proches : main d'œuvre au forfait (par défaut) ou à l'heure. */
+    public static final String MO_FORFAIT = "forfait";
+    public static final String MO_HEURES = "heures";
+    /** "" = non choisi (anciens chantiers : à l'heure si un taux a été réglé, sinon forfait). */
+    public String moMode = "";
+    /** Entre proches : montant forfaitaire de la main d'œuvre (centimes). */
+    public long forfaitMoCentimes = 0;
     /** Avancement des travaux déclaré (points de base, 0 à 10000), -1 = non renseigné. */
     public int avancementBp = -1;
     public String statut = A_DEMARRER;
@@ -273,6 +280,8 @@ public final class Chantier {
         if (e.get("tva_defaut_bp") != null) tvaDefautBp = (int) parseLong(e.get("tva_defaut_bp"), -1);
         if (e.get("type") != null) type = TYPE_PROCHES.equals(e.get("type")) ? TYPE_PROCHES : TYPE_PRO;
         if (e.get("taux_convenu_centimes") != null) tauxConvenuCentimes = parseLong(e.get("taux_convenu_centimes"), 0);
+        if (e.get("mo_mode") != null) moMode = MO_HEURES.equals(e.get("mo_mode")) ? MO_HEURES : MO_FORFAIT;
+        if (e.get("forfait_mo_centimes") != null) forfaitMoCentimes = Math.max(0, parseLong(e.get("forfait_mo_centimes"), 0));
         if (e.get("avancement_bp") != null) avancementBp = (int) Math.max(0, Math.min(10000, parseLong(e.get("avancement_bp"), 0)));
         if (e.get("retenue_bp") != null) retenueBp = (int) Math.max(0, Math.min(500, parseLong(e.get("retenue_bp"), 0)));
     }
@@ -350,6 +359,12 @@ public final class Chantier {
     }
 
     /** Vrai si la dépense doit être refacturée au client, en tenant compte du mode du chantier. */
+    /** Entre proches : la main d'œuvre est-elle payée au forfait ? */
+    public boolean moAuForfait() {
+        if (!moMode.isEmpty()) return MO_FORFAIT.equals(moMode);
+        return tauxConvenuCentimes <= 0;
+    }
+
     public boolean entreProches() {
         return TYPE_PROCHES.equals(type);
     }

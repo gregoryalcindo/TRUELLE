@@ -68,7 +68,9 @@ public final class RentabiliteScreen extends Screen {
         p.contenu.addView(detail, UiKit.pleineLargeur());
 
         if (f.totalHeuresCentiemes() > 0) {
-            String taux = f.c.tauxConvenuCentimes > 0 ? " à " + Money.format(f.c.tauxConvenuCentimes) + "/h" : " (taux à régler)";
+            String taux = f.c.moAuForfait()
+                    ? (f.tauxEquivalentForfait() > 0 ? ", soit " + Money.format(f.tauxEquivalentForfait()) + "/h avec le forfait" : "")
+                    : f.c.tauxConvenuCentimes > 0 ? " à " + Money.format(f.c.tauxConvenuCentimes) + "/h" : " (taux à régler)";
             p.contenu.addView(UiKit.text(a, Heures.format(f.totalHeuresCentiemes()) + " de travail" + taux + ".", 16, UiKit.ENCRE_2, false));
         }
         p.contenu.addView(UiKit.text(a, "Achats comptés au prix payé, TVA comprise. Les tickets sont joints au PDF du décompte.", 15, UiKit.ENCRE_2, false));

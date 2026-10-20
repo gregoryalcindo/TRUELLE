@@ -49,7 +49,7 @@ public final class GererScreen extends Screen {
     private String onglet;
 
     // Réglages du chantier en cours d'édition (gardés si l'écran est redessiné).
-    private String rTitre, rClient, rAdresse, rMode, rBudget, rType, rTaux;
+    private String rTitre, rClient, rAdresse, rMode, rBudget, rType, rTaux, rForfait, rMoMode;
     private int rMajoration = -1, rTva = -1, rRetenue = -1, rAvancement = -2;
 
     public GererScreen(MainActivity a, String chantierId, String onglet) {
@@ -118,7 +118,7 @@ public final class GererScreen extends Screen {
 
     private View onglets(Chantier c) {
         String[][] liste = c.entreProches()
-                ? new String[][]{{DEPENSES, "Dépenses"}, {HEURES, "Heures"}, {TRAVAUX, "Travaux"}, {FACTURATION, "Versements"}, {REGLAGES, "Réglages"}}
+                ? new String[][]{{DEPENSES, "Dépenses"}, {HEURES, "Main d'œuvre"}, {TRAVAUX, "Travaux"}, {FACTURATION, "Versements"}, {REGLAGES, "Réglages"}}
                 : new String[][]{{DEVIS, "Devis"}, {DEPENSES, "Dépenses"}, {HEURES, "Heures"}, {TRAVAUX, "Travaux +"}, {FACTURATION, "Facturation"}, {REGLAGES, "Réglages"}};
         LinearLayout row = UiKit.ligne(a, 8);
         row.setPadding(0, dp(4), 0, 0);
@@ -262,22 +262,34 @@ public final class GererScreen extends Screen {
         long cout = 0;
         for (Chantier.Heure h : liste) cout += f.coutHeure(h);
         LinearLayout recap = carte();
-        recap.addView(UiKit.ligneChiffre(a, "Total des heures", Heures.format(f.totalHeuresCentiemes()), true), UiKit.pleineLargeur());
-        recap.addView(UiKit.ligneChiffre(a, f.proches() ? "Main d'œuvre due" : "Coût de la main d'œuvre", Money.format(cout), true), UiKit.pleineLargeur());
+        boolean forfait = f.proches() && f.c.moAuForfait();
+        if (forfait) {
+            recap.addView(UiKit.ligneChiffre(a, "Main d'œuvre au forfait", Money.format(f.c.forfaitMoCentimes), true), UiKit.pleineLargeur());
+            if (f.c.forfaitMoCentimes <= 0) {
+                recap.addView(UiKit.text(a, "Indiquez le montant du forfait dans l'onglet Réglages.", 15, UiKit.ENCRE_2, false));
+            }
+            recap.addView(UiKit.ligneChiffre(a, "Heures notées (pour info)", Heures.format(f.totalHeuresCentiemes()), false), UiKit.pleineLargeur());
+            if (f.tauxEquivalentForfait() > 0) {
+                recap.addView(UiKit.ligneChiffre(a, "Soit, par heure", Money.format(f.tauxEquivalentForfait()) + "/h", false), UiKit.pleineLargeur());
+            }
+        } else {
+            recap.addView(UiKit.ligneChiffre(a, "Total des heures", Heures.format(f.totalHeuresCentiemes()), true), UiKit.pleineLargeur());
+            recap.addView(UiKit.ligneChiffre(a, f.proches() ? "Main d'œuvre due" : "Coût de la main d'œuvre", Money.format(cout), true), UiKit.pleineLargeur());
+        }
         long budget = f.prevuParPoste().get(Postes.MAIN_OEUVRE);
         if (!f.proches() && budget > 0) recap.addView(UiKit.ligneChiffre(a, "Budget main d'œuvre", Money.format(budget), false), UiKit.pleineLargeur());
         if (!f.proches() && f.r.tauxHoraireCentimes <= 0) {
             recap.addView(UiKit.text(a, "Réglez le coût horaire chargé dans les réglages de l'appli pour chiffrer les heures.", 15, UiKit.ENCRE_2, false));
         }
-        if (f.proches() && f.c.tauxConvenuCentimes <= 0) {
+        if (f.proches() && !forfait && f.c.tauxConvenuCentimes <= 0) {
             recap.addView(UiKit.text(a, "Réglez le taux horaire convenu dans l'onglet Réglages.", 15, UiKit.ENCRE_2, false));
         }
         p.contenu.addView(recap, UiKit.pleineLargeur());
-        if (liste.isEmpty()) p.contenu.addView(UiKit.text(a, "Aucune heure saisie.", 16, UiKit.ENCRE_2, false));
+        if (liste.isEmpty()) p.contenu.addView(UiKit.text(a, forfait ? "Aucune heure notée. Facultatif au forfait." : "Aucune heure saisie.", 16, UiKit.ENCRE_2, false));
         for (Chantier.Heure h : liste) {
             String titre = Heures.format(h.heuresCentiemes) + (h.personne.isEmpty() ? "" : " · " + h.personne);
             String sous = (h.date.isEmpty() ? "" : h.date) + (h.note.isEmpty() ? "" : (h.date.isEmpty() ? "" : " · ") + h.note);
-            p.contenu.addView(UiKit.ligneListe(a, titre, sous, Money.format(f.coutHeure(h)), null,
+            p.contenu.addView(UiKit.ligneListe(a, titre, sous, forfait ? null : Money.format(f.coutHeure(h)), null,
                     v -> a.ouvrir(new HeuresScreen(a, chantierId, h.id))), UiKit.pleineLargeur());
         }
         p.ajouterAuPied(UiKit.boutonAction(a, "+ Ajouter des heures", v -> a.ouvrir(new HeuresScreen(a, chantierId, null))));
@@ -350,6 +362,8 @@ public final class GererScreen extends Screen {
             rAvancement = c.avancementBp;
             rBudget = c.budgetMaterielCentimes > 0 ? Money.toInput(c.budgetMaterielCentimes) : "";
             rTaux = c.tauxConvenuCentimes > 0 ? Money.toInput(c.tauxConvenuCentimes) : "";
+            rForfait = c.forfaitMoCentimes > 0 ? Money.toInput(c.forfaitMoCentimes) : "";
+            rMoMode = c.moAuForfait() ? Chantier.MO_FORFAIT : Chantier.MO_HEURES;
         }
         boolean proches = Chantier.TYPE_PROCHES.equals(rType);
         EditText fTitre = UiKit.champTexte(a, rTitre);
@@ -357,6 +371,8 @@ public final class GererScreen extends Screen {
         EditText fAdresse = UiKit.champ(a, rAdresse, InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_POSTAL_ADDRESS | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
         EditText fBudget = UiKit.champMontant(a, rBudget);
         fBudget.setHint("Facultatif");
+        EditText fForfait = UiKit.champMontant(a, rForfait);
+        fForfait.setHint("Ex. : 800");
         EditText fTaux = UiKit.champMontant(a, rTaux);
         fTaux.setHint("Ex. : 20");
         Runnable garder = () -> {
@@ -365,6 +381,7 @@ public final class GererScreen extends Screen {
             rAdresse = fAdresse.getText().toString().trim();
             rBudget = fBudget.getText().toString().trim();
             rTaux = fTaux.getText().toString().trim();
+            rForfait = fForfait.getText().toString().trim();
         };
 
         // Type de chantier
@@ -396,7 +413,21 @@ public final class GererScreen extends Screen {
         p.contenu.addView(carte(blocAv), UiKit.pleineLargeur());
 
         if (proches) {
-            p.contenu.addView(UiKit.libelle(a, "Taux horaire convenu (€/h)", UiKit.euro(a, fTaux)), UiKit.pleineLargeur());
+            LinearLayout blocMo = UiKit.colonne(a, 8);
+            blocMo.addView(UiKit.titre(a, "Main d'œuvre", 20));
+            blocMo.addView(UiKit.choix(a, new String[][]{{Chantier.MO_FORFAIT, "Au forfait"}, {Chantier.MO_HEURES, "À l'heure"}}, rMoMode, choisi -> {
+                garder.run();
+                rMoMode = choisi;
+                a.remplacer(this);
+            }), UiKit.pleineLargeur());
+            if (Chantier.MO_FORFAIT.equals(rMoMode)) {
+                blocMo.addView(UiKit.libelle(a, "Montant du forfait", UiKit.euro(a, fForfait)), UiKit.pleineLargeur());
+                blocMo.addView(UiKit.text(a, "Prix fixe pour le travail. Les heures notées restent pour info.", 15, UiKit.ENCRE_2, false));
+            } else {
+                blocMo.addView(UiKit.libelle(a, "Taux horaire convenu (€/h)", UiKit.euro(a, fTaux)), UiKit.pleineLargeur());
+                blocMo.addView(UiKit.text(a, "La main d'œuvre due = heures notées × ce taux.", 15, UiKit.ENCRE_2, false));
+            }
+            p.contenu.addView(carte(blocMo), UiKit.pleineLargeur());
         } else {
             // Matériel
             LinearLayout blocMode = UiKit.colonne(a, 8);
@@ -457,7 +488,8 @@ public final class GererScreen extends Screen {
             }
             long budget = rBudget.isEmpty() ? 0 : Money.parseCentimes(rBudget);
             long taux = rTaux.isEmpty() ? 0 : Money.parseCentimes(rTaux);
-            if (budget < 0 || taux < 0) {
+            long forfaitMo = rForfait.isEmpty() ? 0 : Money.parseCentimes(rForfait);
+            if (budget < 0 || taux < 0 || forfaitMo < 0) {
                 toast("Montant invalide");
                 return;
             }
@@ -470,6 +502,8 @@ public final class GererScreen extends Screen {
             if (rMajoration != c.majorationPct) data.put("majoration_pct", Integer.toString(rMajoration));
             if (budget != c.budgetMaterielCentimes) data.put("budget_materiel_centimes", Long.toString(budget));
             if (taux != c.tauxConvenuCentimes) data.put("taux_convenu_centimes", Long.toString(taux));
+            if (forfaitMo != c.forfaitMoCentimes) data.put("forfait_mo_centimes", Long.toString(forfaitMo));
+            if (Chantier.TYPE_PROCHES.equals(rType) && !rMoMode.equals(c.moMode)) data.put("mo_mode", rMoMode);
             if (!f.r.franchise() && rTva != f.tvaDefaut()) data.put("tva_defaut_bp", Integer.toString(rTva));
             if (rRetenue != c.retenueBp) data.put("retenue_bp", Integer.toString(rRetenue));
             if (rAvancement != c.avancementBp && rAvancement >= 0) data.put("avancement_bp", Integer.toString(rAvancement));

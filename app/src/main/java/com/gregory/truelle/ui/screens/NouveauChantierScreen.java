@@ -20,6 +20,8 @@ public final class NouveauChantierScreen extends Screen {
     private String adresse = "";
     private String type = Chantier.TYPE_PRO;
     private String taux = "";
+    private String forfait = "";
+    private String moMode = Chantier.MO_FORFAIT;
 
     public NouveauChantierScreen(MainActivity a) {
         super(a);
@@ -45,37 +47,55 @@ public final class NouveauChantierScreen extends Screen {
 
         EditText fTaux = UiKit.champMontant(a, taux);
         fTaux.setHint("Ex. : 20");
+        EditText fForfait = UiKit.champMontant(a, forfait);
+        fForfait.setHint("Ex. : 800");
         boolean proches = Chantier.TYPE_PROCHES.equals(type);
 
         // Type de chantier : décide de tout le reste (TVA, devis, bénéfice… ou simple décompte).
         LinearLayout blocType = UiKit.colonne(a, 8);
         blocType.addView(UiKit.text(a, "Type de chantier", 16, UiKit.ENCRE_2, false));
         blocType.addView(UiKit.choix(a, new String[][]{{Chantier.TYPE_PRO, "Professionnel"}, {Chantier.TYPE_PROCHES, "Entre proches"}}, type, choisi -> {
-            garder(fTitre, fClient, fAdresse, fTaux);
+            garder(fTitre, fClient, fAdresse, fTaux, fForfait);
             type = choisi;
             a.remplacer(this);
         }), UiKit.pleineLargeur());
         blocType.addView(UiKit.text(a, proches
-                ? "Pour la famille ou un ami : les achats sont remboursés au prix payé, la main d'œuvre est payée au taux convenu. Pas de TVA, pas de bénéfice."
+                ? "Pour la famille ou un ami : les achats sont remboursés au prix payé, la main d'œuvre est payée au forfait (ou à l'heure). Pas de TVA, pas de bénéfice."
                 : "Pour un client : devis, TVA, budget, bénéfice et facturation.", 15, UiKit.ENCRE_2, false));
         p.contenu.addView(blocType, UiKit.pleineLargeur());
 
         p.contenu.addView(UiKit.libelle(a, "Travaux", fTitre), UiKit.pleineLargeur());
         p.contenu.addView(UiKit.libelle(a, proches ? "Pour qui" : "Client", fClient), UiKit.pleineLargeur());
         p.contenu.addView(UiKit.libelle(a, "Adresse", fAdresse), UiKit.pleineLargeur());
-        if (proches) p.contenu.addView(UiKit.libelle(a, "Taux horaire convenu (€/h, facultatif)", UiKit.euro(a, fTaux)), UiKit.pleineLargeur());
+        if (proches) {
+            boolean auForfait = Chantier.MO_FORFAIT.equals(moMode);
+            LinearLayout blocMo = UiKit.colonne(a, 8);
+            blocMo.addView(UiKit.text(a, "Main d'œuvre", 16, UiKit.ENCRE_2, false));
+            blocMo.addView(UiKit.choix(a, new String[][]{{Chantier.MO_FORFAIT, "Au forfait"}, {Chantier.MO_HEURES, "À l'heure"}}, moMode, choisi -> {
+                garder(fTitre, fClient, fAdresse, fTaux, fForfait);
+                moMode = choisi;
+                a.remplacer(this);
+            }), UiKit.pleineLargeur());
+            if (auForfait) {
+                blocMo.addView(UiKit.libelle(a, "Montant du forfait (facultatif, modifiable ensuite)", UiKit.euro(a, fForfait)), UiKit.pleineLargeur());
+                blocMo.addView(UiKit.text(a, "Un prix fixe pour le travail. Les heures peuvent quand même être notées, pour info.", 15, UiKit.ENCRE_2, false));
+            } else {
+                blocMo.addView(UiKit.libelle(a, "Taux horaire convenu (€/h, facultatif)", UiKit.euro(a, fTaux)), UiKit.pleineLargeur());
+            }
+            p.contenu.addView(blocMo, UiKit.pleineLargeur());
+        }
 
         // Mode du matériel : la sélection est en noir, comme partout dans l'appli.
         LinearLayout blocMode = UiKit.colonne(a, 8);
         blocMode.addView(UiKit.text(a, "Matériel", 16, UiKit.ENCRE_2, false));
         LinearLayout choix = UiKit.ligne(a, 8);
         View.OnClickListener reel = v -> {
-            garder(fTitre, fClient, fAdresse, fTaux);
+            garder(fTitre, fClient, fAdresse, fTaux, fForfait);
             mode = Chantier.MODE_REEL;
             a.remplacer(this);
         };
         View.OnClickListener forfait = v -> {
-            garder(fTitre, fClient, fAdresse, fTaux);
+            garder(fTitre, fClient, fAdresse, fTaux, fForfait);
             mode = Chantier.MODE_FORFAIT;
             a.remplacer(this);
         };
@@ -88,21 +108,24 @@ public final class NouveauChantierScreen extends Screen {
         if (!proches) p.contenu.addView(blocMode, UiKit.pleineLargeur());
 
         p.ajouterAuPied(UiKit.boutonAction(a, "Créer le chantier", v -> {
-            garder(fTitre, fClient, fAdresse, fTaux);
+            garder(fTitre, fClient, fAdresse, fTaux, fForfait);
             if (titre.isEmpty()) {
                 fTitre.setError("Indiquez les travaux");
                 fTitre.requestFocus();
                 return;
             }
             long t = taux.isEmpty() ? 0 : com.gregory.truelle.data.Money.parseCentimes(taux);
-            if (t < 0) {
-                fTaux.setError("Taux invalide");
+            long fo = forfait.isEmpty() ? 0 : com.gregory.truelle.data.Money.parseCentimes(forfait);
+            if (t < 0 || fo < 0) {
+                (t < 0 ? fTaux : fForfait).setError("Montant invalide");
                 return;
             }
             java.util.Map<String, String> extra = new java.util.LinkedHashMap<>();
             extra.put("type", type);
             if (proches) {
-                extra.put("taux_convenu_centimes", Long.toString(t));
+                extra.put("mo_mode", moMode);
+                if (Chantier.MO_FORFAIT.equals(moMode)) extra.put("forfait_mo_centimes", Long.toString(fo));
+                else extra.put("taux_convenu_centimes", Long.toString(t));
                 extra.put("tva_defaut_bp", "0");
             }
             try {
@@ -118,8 +141,9 @@ public final class NouveauChantierScreen extends Screen {
         return p.racine;
     }
 
-    private void garder(EditText t, EditText c, EditText ad, EditText tx) {
+    private void garder(EditText t, EditText c, EditText ad, EditText tx, EditText fo) {
         taux = tx.getText().toString().trim();
+        forfait = fo.getText().toString().trim();
         titre = t.getText().toString().trim();
         client = c.getText().toString().trim();
         adresse = ad.getText().toString().trim();

@@ -183,15 +183,24 @@ public final class Finance {
         return proches() ? c.tauxConvenuCentimes : r.tauxHoraireCentimes;
     }
 
-    /** Entre proches : main d'œuvre due (heures × taux convenu). */
+    /** Entre proches : main d'œuvre due — le forfait convenu, ou heures × taux convenu. */
     public long mainOeuvreDue() {
         if (!proches()) return 0;
+        if (c.moAuForfait()) return c.forfaitMoCentimes;
         long t = 0;
         for (Chantier.Heure h : c.heures()) t += coutHeure(h);
         return t;
     }
 
+    /** Entre proches au forfait : ce que le forfait représente par heure saisie (0 sans heures). */
+    public long tauxEquivalentForfait() {
+        long h = totalHeuresCentiemes();
+        return h <= 0 ? 0 : Tva.arrondi(c.forfaitMoCentimes * 100L, h);
+    }
+
+    /** Coût d'une ligne d'heures. Entre proches au forfait : 0 (le forfait est compté une fois). */
     public long coutHeure(Chantier.Heure h) {
+        if (proches() && c.moAuForfait()) return 0;
         return Tva.arrondi(h.heuresCentiemes * tauxHeure(h), 100);
     }
 
