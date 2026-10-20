@@ -36,7 +36,7 @@ public final class RentabiliteScreen extends Screen {
     public View build() {
         Chantier c = store().charger(chantierId);
         Page p = new Page(a);
-        p.entete.addView(UiKit.retour(a, "Gérer le chantier", v -> a.retour()));
+        p.entete.addView(UiKit.retour(a, "Retour", v -> a.retour()));
         if (c == null) return p.racine;
         Finance f = a.finance(c);
         p.entete.addView(UiKit.titre(a, "Budget et bénéfice", 30));
@@ -86,7 +86,7 @@ public final class RentabiliteScreen extends Screen {
             LinearLayout l1 = UiKit.ligne(a, 8);
             l1.addView(UiKit.text(a, po[1], 17, UiKit.ENCRE, true), UiKit.poids(1));
             if (alerte == 2) l1.addView(UiKit.chip(a, "Dépassé", UiKit.ROUGE, Color.WHITE));
-            else if (alerte == 1) l1.addView(UiKit.chip(a, "Attention", UiKit.BLEU_FOND, UiKit.BLEU));
+            else if (alerte == 1) l1.addView(UiKit.chip(a, "Attention", UiKit.AMBRE_FOND, UiKit.AMBRE));
             bloc.addView(l1, UiKit.pleineLargeur());
             if (b > 0) bloc.addView(barre(d + e, b), UiKit.pleineLargeur());
             String txt = "Dépensé " + Money.format(d) + (e > 0 ? " · engagé " + Money.format(e) : "")

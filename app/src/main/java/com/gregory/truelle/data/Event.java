@@ -27,6 +27,10 @@ public final class Event {
     public static final String FACTURATION = "facturation";
     /** Heures de main d'œuvre passées sur le chantier. */
     public static final String HEURES = "heures";
+    /** Tâche à faire sur un chantier (texte, qui, date, fait). */
+    public static final String TACHE = "tache";
+    /** Photo du chantier (fichier, miniature, moment avant / pendant / après). */
+    public static final String PHOTO = "photo";
     /** Infos de l'entreprise (nom, adresse, SIRET…), dans le journal de _App/. */
     public static final String ENTREPRISE = "entreprise";
 

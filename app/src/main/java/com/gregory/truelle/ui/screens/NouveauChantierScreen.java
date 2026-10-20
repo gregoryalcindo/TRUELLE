@@ -21,7 +21,10 @@ public final class NouveauChantierScreen extends Screen {
     private String titre = "";
     private String client = "";
     private String adresse = "";
+    private String telephone = "";
     private String type = Chantier.TYPE_PRO;
+
+    private EditText champTel;
 
     public NouveauChantierScreen(MainActivity a) {
         super(a);
@@ -44,11 +47,15 @@ public final class NouveauChantierScreen extends Screen {
         fClient.setHint("Nom du client");
         EditText fAdresse = UiKit.champ(a, adresse, InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_POSTAL_ADDRESS | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
         fAdresse.setHint("Adresse du chantier");
+        EditText fTel = UiKit.champ(a, telephone, InputType.TYPE_CLASS_PHONE);
+        fTel.setHint("Facultatif");
+        champTel = fTel;
         boolean proches = Chantier.TYPE_PROCHES.equals(type);
 
         p.contenu.addView(UiKit.libelle(a, "Travaux", fTitre), UiKit.pleineLargeur());
         p.contenu.addView(UiKit.libelle(a, "Client", fClient), UiKit.pleineLargeur());
         p.contenu.addView(UiKit.libelle(a, "Adresse", fAdresse), UiKit.pleineLargeur());
+        p.contenu.addView(UiKit.libelle(a, "Téléphone du client", fTel), UiKit.pleineLargeur());
 
         // Type : seule différence, la TVA. Tout le reste fonctionne pareil.
         LinearLayout blocType = UiKit.colonne(a, 8);
@@ -94,6 +101,7 @@ public final class NouveauChantierScreen extends Screen {
             }
             java.util.Map<String, String> extra = new java.util.LinkedHashMap<>();
             extra.put("type", type);
+            if (!telephone.isEmpty()) extra.put("telephone", telephone);
             if (proches) extra.put("tva_defaut_bp", "0");
             try {
                 Chantier c = store().creerChantier(titre, client, adresse, mode, a.auteur(), extra);
@@ -112,5 +120,6 @@ public final class NouveauChantierScreen extends Screen {
         titre = t.getText().toString().trim();
         client = c.getText().toString().trim();
         adresse = ad.getText().toString().trim();
+        if (champTel != null) telephone = champTel.getText().toString().trim();
     }
 }

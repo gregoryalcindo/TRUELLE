@@ -37,7 +37,7 @@ public final class AuteurScreen extends Screen {
                 return;
             }
             a.setAuteur(nom);
-            a.racine(new ListeScreen(a));
+            a.allerA(MainActivity.ONGLET_CARNET);
         }));
         prenom.requestFocus();
         return p.racine;

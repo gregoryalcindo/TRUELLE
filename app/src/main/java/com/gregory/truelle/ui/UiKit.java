@@ -22,9 +22,10 @@ import android.widget.TextView;
 import com.gregory.truelle.data.Chantier;
 
 /**
- * Composants visuels partagés. Palette validée par Arthur :
- * orange = actions uniquement, bleu = en cours, vert = terminé / OK,
- * gris = à démarrer et neutre, noir = texte, chiffres et sélection, rouge = alertes.
+ * Composants visuels partagés. Règle d'Arthur : « la couleur est un signal, pas une décoration ».
+ * Base neutre (crème, blanc, pierre, gris, encre) pour la structure, les textes, les montants
+ * et les boutons. Couleur seulement pour un état, toujours avec un mot ou une icône :
+ * vert = acquis, ambre = attention, rouge = problème, bleu = en cours.
  */
 public final class UiKit {
 
@@ -36,7 +37,15 @@ public final class UiKit {
     public static final int ENCRE_2 = Color.parseColor("#4A4F55");
     public static final int BORDURE = Color.parseColor("#C9C6BD");
     public static final int NEUTRE = Color.parseColor("#E8E6DF");
-    public static final int ACTION = Color.parseColor("#C2410C");
+    /** Action principale : encre (plus de terracotta dans l'interface). */
+    public static final int ACTION = Color.parseColor("#1B1F23");
+    /** Carte mise en avant (« À encaisser »). */
+    public static final int PIERRE = Color.parseColor("#E6E3DA");
+    public static final int AMBRE = Color.parseColor("#92400E");
+    public static final int AMBRE_FOND = Color.parseColor("#FDEFD3");
+    public static final int AMBRE_VIF = Color.parseColor("#B45309");
+    public static final int ROUGE_FOND = Color.parseColor("#FBE3E1");
+    public static final int SEPARATEUR = Color.parseColor("#ECE9E1");
     public static final int BLEU = Color.parseColor("#1E3A8A");
     public static final int BLEU_FOND = Color.parseColor("#DCE6F5");
     public static final int VERT = Color.parseColor("#14532D");
@@ -47,6 +56,10 @@ public final class UiKit {
     /** Voile posé sous les panneaux (#991B1F23) et le même voile déjà mélangé au fond, pour les bords d'écran. */
     public static final int VOILE = Color.parseColor("#991B1F23");
     public static final int FOND_VOILE = Color.parseColor("#717373");
+
+    /** Repères posés sur les vues : la zone qui défile (position gardée), le panneau du bouton +. */
+    public static final String TAG_DEFILE = "defile";
+    public static final String TAG_PANNEAU = "panneau";
 
     public static final Typeface TITRE = Typeface.create("sans-serif-condensed", Typeface.BOLD);
 

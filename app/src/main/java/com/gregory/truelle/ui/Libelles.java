@@ -51,7 +51,7 @@ public final class Libelles {
 
     public static TextView chipFacturation(Context c, String statut) {
         int[] col = Chantier.FACT_ENCAISSE.equals(statut) ? new int[]{UiKit.VERT_FOND, UiKit.VERT}
-                : Chantier.FACT_FACTURE.equals(statut) ? new int[]{UiKit.BLEU_FOND, UiKit.BLEU}
+                : Chantier.FACT_FACTURE.equals(statut) ? new int[]{UiKit.AMBRE_FOND, UiKit.AMBRE}
                 : new int[]{UiKit.GRIS_FOND, UiKit.GRIS};
         return UiKit.chip(c, facturation(statut), col[0], col[1]);
     }

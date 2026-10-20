@@ -111,6 +111,37 @@ public class SynchroTest {
     }
 
     @Test
+    public void libererDeLaPlace_puisRecupererAlaDemande() throws Exception {
+        FauxDrive drive = new FauxDrive();
+        File tel = Files.createTempDirectory("tel").toFile();
+        LocalStore store = new LocalStore(tel);
+        Chantier c = store.creerChantier("Terrasse", "Lucas", "", Chantier.MODE_REEL, "Grégory");
+        File photo = Files.createTempFile("photo", ".jpg").toFile();
+        Files.write(photo.toPath(), new byte[300_000]);
+        String chemin = store.importerFichier(c.id, "Photos", photo, "Photo 1", "jpg");
+        Synchro.synchroniser(tel, drive);
+
+        // Place libérée : le fichier quitte le téléphone, il est noté « sur le Drive ».
+        assertEquals(300_000, store.liberer(c.id, chemin));
+        assertEquals(null, store.fichier(c.id, chemin));
+        assertTrue(store.surLeDriveSeulement(c.id, chemin));
+
+        // La synchro ne le retélécharge pas et ne supprime rien sur le Drive.
+        Synchro.Bilan b = Synchro.synchroniser(tel, drive);
+        assertEquals(0, b.recus);
+        assertEquals(0, b.envoyes);
+        assertEquals(null, store.fichier(c.id, chemin));
+
+        // À la demande, il revient.
+        File dest = store.emplacement(c.id, chemin);
+        assertTrue(Synchro.recuperer(drive, store.cheminDepuisRacine(c.id, chemin), dest));
+        store.recupere(c.id, chemin);
+        assertEquals(300_000, store.fichier(c.id, chemin).length());
+        assertEquals(false, store.surLeDriveSeulement(c.id, chemin));
+        assertEquals(false, Synchro.recuperer(drive, store.cheminDepuisRacine(c.id, "Photos/absente.jpg"), new File(tel, "x.jpg")));
+    }
+
+    @Test
     public void fichiersTemporairesEtCachesIgnores() {
         assertTrue(Synchro.ignorer(".abc.json.tmp"));
         assertTrue(Synchro.ignorer(".cache"));

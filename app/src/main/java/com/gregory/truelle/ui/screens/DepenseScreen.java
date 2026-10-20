@@ -123,6 +123,16 @@ public final class DepenseScreen extends Screen {
             p.contenu.addView(blocFacture(scan.pdf, true, fMontant, fFournisseur), UiKit.pleineLargeur());
         } else if (factureJointe != null) {
             p.contenu.addView(blocFacture(factureJointe, false, fMontant, fFournisseur), UiKit.pleineLargeur());
+        } else if (edition && store().surLeDriveSeulement(chantierId, existante.fichier)) {
+            // Facture rangée sur le Drive pour libérer de la place : on la rapatrie à la demande.
+            String chemin = existante.fichier;
+            p.contenu.addView(UiKit.boutonContour(a, "Facture sur le Drive · la télécharger", v -> {
+                toast("Téléchargement…");
+                StockageScreen.recupererTout(a, chantierId, java.util.Collections.singletonList(chemin), echecs -> {
+                    if (echecs > 0) toast("Téléchargement impossible : vérifiez le réseau et Google Drive.");
+                    a.remplacer(this);
+                });
+            }), UiKit.pleineLargeur());
         } else {
             p.contenu.addView(UiKit.boutonContour(a, edition ? "Ajouter la photo de la facture" : "Prendre la facture en photo",
                     v -> photographier(fMontant, fFournisseur)), UiKit.pleineLargeur());
@@ -393,7 +403,7 @@ public final class DepenseScreen extends Screen {
         long ttc = Math.max(0, Money.parseCentimes(montant));
         long cout = fin.r.recupereTva ? com.gregory.truelle.data.Tva.ht(ttc, tauxEffectif()) : ttc;
         long reste = budget - dejaPris - cout;
-        int couleur = reste < 0 ? UiKit.ROUGE : (budget - reste) * 10 >= budget * 8 ? UiKit.ACTION : UiKit.VERT;
+        int couleur = reste < 0 ? UiKit.ROUGE : (budget - reste) * 10 >= budget * 8 ? UiKit.AMBRE : UiKit.ENCRE;
         String txt = "Budget « " + com.gregory.truelle.data.Postes.libelle(poste) + " » : "
                 + (reste >= 0 ? "il restera " + Money.format(reste) : "dépassé de " + Money.format(-reste)) + " sur " + Money.format(budget);
         return UiKit.text(a, txt, 16, couleur, true);

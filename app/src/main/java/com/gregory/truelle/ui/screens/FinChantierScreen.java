@@ -61,6 +61,25 @@ public final class FinChantierScreen extends Screen {
             p.contenu.addView(alerte, UiKit.pleineLargeur());
         }
 
+        // Factures rangées sur le Drive (place libérée) : il faut les rapatrier pour les joindre au PDF.
+        java.util.List<String> surDrive = new java.util.ArrayList<>();
+        for (Chantier.Depense d : c.depenses()) {
+            if (!d.fichier.isEmpty() && store().surLeDriveSeulement(chantierId, d.fichier)) surDrive.add(d.fichier);
+        }
+        if (!surDrive.isEmpty()) {
+            LinearLayout alerte = carte();
+            alerte.addView(UiKit.text(a, surDrive.size() + (surDrive.size() > 1 ? " factures sont rangées" : " facture est rangée")
+                    + " sur le Drive. Téléchargez-les avant de créer les PDF, pour qu'elles y soient jointes.", 16, UiKit.AMBRE, true));
+            alerte.addView(UiKit.boutonContour(a, "Télécharger les factures", v -> {
+                toast("Téléchargement…");
+                StockageScreen.recupererTout(a, chantierId, surDrive, echecs -> {
+                    if (echecs > 0) toast(echecs + " facture(s) n'ont pas pu être téléchargées.");
+                    a.remplacer(this);
+                });
+            }), UiKit.pleineLargeur());
+            p.contenu.addView(alerte, UiKit.pleineLargeur());
+        }
+
         p.contenu.addView(blocRecap(c, entreprise), UiKit.pleineLargeur());
         p.contenu.addView(blocFactures(c, entreprise), UiKit.pleineLargeur());
         return p.racine;

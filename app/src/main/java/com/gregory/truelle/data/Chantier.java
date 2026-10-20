@@ -38,6 +38,10 @@ public final class Chantier {
     /** Retenue de garantie (points de base, 0 à 500 = 5 %). */
     public int retenueBp = 0;
     public String type = TYPE_PRO;
+    /** Téléphone du client (pour l'appeler depuis la fiche). */
+    public String telephone = "";
+    /** Identifiant de la photo de couverture ("" = la plus récente). */
+    public String couverture = "";
     /** Avancement des travaux déclaré (points de base, 0 à 10000), -1 = non renseigné. */
     public int avancementBp = -1;
     public String statut = A_DEMARRER;
@@ -239,6 +243,8 @@ public final class Chantier {
             case Event.DEVIS:
             case Event.TRAVAUX:
             case Event.FACTURATION:
+            case Event.TACHE:
+            case Event.PHOTO:
                 elements.put(e.id, new Element(e.id, e.type, e.auteur, e.at, e.data()));
                 break;
             case Event.CORRECTION:
@@ -263,6 +269,8 @@ public final class Chantier {
     private void applyInfos(Event e) {
         if (e.get("dossier") != null) dossier = e.get("dossier");
         if (e.get("titre") != null) titre = e.get("titre");
+        if (e.get("telephone") != null) telephone = e.get("telephone");
+        if (e.get("couverture") != null) couverture = e.get("couverture");
         if (e.get("client") != null) client = e.get("client");
         if (e.get("adresse") != null) adresse = e.get("adresse");
         if (e.get("mode") != null) mode = MODE_REEL.equals(e.get("mode")) ? MODE_REEL : MODE_FORFAIT;
@@ -347,6 +355,56 @@ public final class Chantier {
     }
 
     /** Vrai si la dépense doit être refacturée au client, en tenant compte du mode du chantier. */
+    // ------------------------------------------------------------- tâches et photos
+
+    public static final String MOMENT_AVANT = "avant";
+    public static final String MOMENT_PENDANT = "pendant";
+    public static final String MOMENT_APRES = "apres";
+
+    public static boolean tacheFaite(Element t) {
+        return "oui".equals(t.get("fait"));
+    }
+
+    /** Tâches : à faire d'abord (par date, sans date à la fin), puis faites (les plus récentes d'abord). */
+    public List<Element> taches() {
+        List<Element> l = elements(Event.TACHE);
+        l.sort((x, y) -> {
+            boolean fx = tacheFaite(x), fy = tacheFaite(y);
+            if (fx != fy) return fx ? 1 : -1;
+            if (fx) return Long.compare(y.creeLe, x.creeLe);
+            int cmp = Long.compare(Dates.cle(x.get("date")), Dates.cle(y.get("date")));
+            return cmp != 0 ? cmp : Long.compare(x.creeLe, y.creeLe);
+        });
+        return l;
+    }
+
+    public int tachesFaites() {
+        int n = 0;
+        for (Element t : elements(Event.TACHE)) if (tacheFaite(t)) n++;
+        return n;
+    }
+
+    /** Photos, les plus récentes d'abord. */
+    public List<Element> photos() {
+        List<Element> l = elements(Event.PHOTO);
+        l.sort((x, y) -> Long.compare(y.creeLe, x.creeLe));
+        return l;
+    }
+
+    /** Photo de couverture : celle choisie, sinon la plus récente ; null sans photo. */
+    public Element photoCouverture() {
+        List<Element> l = photos();
+        for (Element p : l) if (p.id.equals(couverture)) return p;
+        return l.isEmpty() ? null : l.get(0);
+    }
+
+    /** Moment proposé pour une nouvelle photo, selon le statut du chantier. */
+    public String momentParDefaut() {
+        if (A_DEMARRER.equals(statut)) return MOMENT_AVANT;
+        if (TERMINE.equals(statut)) return MOMENT_APRES;
+        return MOMENT_PENDANT;
+    }
+
     public boolean entreProches() {
         return TYPE_PROCHES.equals(type);
     }

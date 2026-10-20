@@ -29,6 +29,7 @@ final class Page {
         racine.addView(entete, UiKit.pleineLargeur());
 
         ScrollView sv = new ScrollView(c);
+        sv.setTag(UiKit.TAG_DEFILE);
         sv.setFillViewport(true);
         sv.setClipToPadding(false);
         contenu = UiKit.colonne(c, 14);
@@ -39,6 +40,12 @@ final class Page {
         pied = UiKit.colonne(c, 10);
         pied.setPadding(UiKit.dp(c, 20), UiKit.dp(c, 8), UiKit.dp(c, 20), UiKit.dp(c, 20));
         racine.addView(pied, UiKit.pleineLargeur());
+    }
+
+    /** Écran racine : barre du bas (Carnet · Chantiers · + · Planning · Outils). */
+    void barre(com.gregory.truelle.MainActivity a, String onglet) {
+        if (pied.getChildCount() == 0) pied.setVisibility(View.GONE);
+        racine.addView(Barre.creer(a, onglet, null));
     }
 
     void ajouterAuPied(View v) {

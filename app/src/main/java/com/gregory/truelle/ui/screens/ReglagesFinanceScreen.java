@@ -124,7 +124,7 @@ public final class ReglagesFinanceScreen extends Screen {
             valideDOffice = "oui".equals(v);
             a.remplacer(this);
         }), UiKit.pleineLargeur());
-        valid.addView(UiKit.text(a, "« À vérifier » : la personne qui gère contrôle montant et TVA dans « Gérer le chantier », puis valide.", 15, UiKit.ENCRE_2, false));
+        valid.addView(UiKit.text(a, "« À vérifier » : la personne qui gère contrôle montant et TVA (fiche du chantier → Dépenses), puis valide.", 15, UiKit.ENCRE_2, false));
         p.contenu.addView(valid, UiKit.pleineLargeur());
 
         p.ajouterAuPied(UiKit.boutonAction(a, "Enregistrer", v -> {

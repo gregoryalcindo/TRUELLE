@@ -192,8 +192,10 @@ public final class SyncManager {
     private void executer(String jeton, boolean reessayer) {
         fil.execute(() -> {
             try {
+                // Heure de DÉBUT de la synchro réussie : tout fichier plus ancien est forcément sur le Drive.
+                long debut = System.currentTimeMillis();
                 Synchro.Bilan b = Synchro.synchroniser(racine, new DriveDistant(jeton));
-                prefs().edit().putLong(KEY_DERNIERE, System.currentTimeMillis()).apply();
+                prefs().edit().putLong(KEY_DERNIERE, debut).apply();
                 principal.post(() -> fin(Etat.A_JOUR, b.toString(), b.recus));
             } catch (DriveDistant.JetonExpire e) {
                 if (reessayer) principal.post(() -> obtenirJeton(jeton, false));
@@ -203,6 +205,44 @@ public final class SyncManager {
                 principal.post(() -> fin(et, String.valueOf(e.getMessage()), 0));
             }
         });
+    }
+
+    /** Résultat d'un rapatriement de fichier, sur le fil principal. */
+    public interface Recuperation {
+        void fini(boolean ok, String message);
+    }
+
+    /** Dernière synchro réussie (ms), 0 si jamais. */
+    public long derniereSynchro() {
+        return prefs().getLong(KEY_DERNIERE, 0);
+    }
+
+    /**
+     * Rapatrie depuis le Drive un fichier laissé là-bas pour libérer de la place.
+     * @param chemin chemin depuis la racine « Chantiers »
+     */
+    public void recuperer(String chemin, File dest, Recuperation cb) {
+        if (!connecte()) {
+            cb.fini(false, "Connectez Google Drive pour récupérer ce fichier.");
+            return;
+        }
+        Identity.getAuthorizationClient(app).authorize(requete())
+                .addOnSuccessListener(r -> {
+                    String jeton = r.getAccessToken();
+                    if (r.hasResolution() || jeton == null || jeton.isEmpty()) {
+                        cb.fini(false, "Reconnectez Google Drive (Outils → Google Drive).");
+                        return;
+                    }
+                    fil.execute(() -> {
+                        try {
+                            boolean ok = Synchro.recuperer(new DriveDistant(jeton), chemin, dest);
+                            principal.post(() -> cb.fini(ok, ok ? "" : "Fichier introuvable sur le Drive."));
+                        } catch (Exception e) {
+                            principal.post(() -> cb.fini(false, estHorsLigne(e) ? "Pas de réseau : réessayez plus tard." : String.valueOf(e.getMessage())));
+                        }
+                    });
+                })
+                .addOnFailureListener(e -> cb.fini(false, estHorsLigne(e) ? "Pas de réseau : réessayez plus tard." : String.valueOf(e.getMessage())));
     }
 
     private void fin(Etat e, String msg, int recus) {

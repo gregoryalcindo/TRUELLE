@@ -32,7 +32,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * « Gérer le chantier » : le niveau poussé, en onglets.
+ * Une section du chantier ouverte depuis sa fiche : devis, dépenses, main d'œuvre, travaux en plus,
+ * factures et paiements, tâches, notes ou réglages (un sujet par page, plus d'onglets).
  * Devis · Dépenses · Heures · Travaux + · Facturation · Réglages,
  * identiques pour un chantier pro ou entre proches (ce dernier, simplement sans TVA).
  */
@@ -44,12 +45,14 @@ public final class GererScreen extends Screen {
     public static final String TRAVAUX = "travaux";
     public static final String FACTURATION = "facturation";
     public static final String REGLAGES = "reglages";
+    public static final String NOTES = "notes";
+    public static final String TACHES = "taches";
 
     private final String chantierId;
     private String onglet;
 
     // Réglages du chantier en cours d'édition (gardés si l'écran est redessiné).
-    private String rTitre, rClient, rAdresse, rMode, rBudget, rType;
+    private String rTitre, rClient, rAdresse, rMode, rBudget, rType, rTel;
     private int rMajoration = -1, rTva = -1, rRetenue = -1, rAvancement = -2;
 
     public GererScreen(MainActivity a, String chantierId, String onglet) {
@@ -71,14 +74,12 @@ public final class GererScreen extends Screen {
         if (c == null) return p.racine;
         Finance f = a.finance(c);
 
-        LinearLayout ligneTitre = UiKit.ligne(a, 12);
-        ligneTitre.addView(UiKit.titre(a, "Gérer le chantier", 30), UiKit.poids(1));
-        ligneTitre.addView(UiKit.chipContour(a, c.entreProches() ? "Sans TVA" : Chantier.MODE_REEL.equals(c.mode) ? "Réel" : "Forfait"));
-        p.entete.addView(ligneTitre, UiKit.pleineLargeur());
-        p.entete.addView(resume(f), UiKit.pleineLargeur());
-        p.entete.addView(onglets(c));
+        // Une section du chantier, ouverte depuis sa fiche (plus d'onglets : un seul sujet par page).
+        p.entete.addView(UiKit.titre(a, titreSection(onglet), 30));
 
         switch (onglet) {
+            case NOTES: notes(p, c); break;
+            case TACHES: taches(p, c); break;
             case DEVIS: devis(p, f); break;
             case HEURES: heures(p, f); break;
             case TRAVAUX: travaux(p, f); break;
@@ -87,6 +88,54 @@ public final class GererScreen extends Screen {
             default: depenses(p, f);
         }
         return p.racine;
+    }
+
+    static String titreSection(String onglet) {
+        switch (onglet) {
+            case DEVIS: return "Devis";
+            case HEURES: return "Main d'œuvre";
+            case TRAVAUX: return "Travaux en plus";
+            case FACTURATION: return "Factures et paiements";
+            case REGLAGES: return "Réglages du chantier";
+            case NOTES: return "Notes";
+            case TACHES: return "Tâches";
+            default: return "Dépenses";
+        }
+    }
+
+    // ------------------------------------------------------------- Tâches
+
+    private void taches(Page p, Chantier c) {
+        List<Chantier.Element> liste = c.taches();
+        int faites = c.tachesFaites();
+        if (!liste.isEmpty()) p.contenu.addView(UiKit.text(a, faites + " sur " + liste.size() + " faites", 16, UiKit.ENCRE_2, false));
+        Blocs.Groupe g = new Blocs.Groupe(a);
+        for (Chantier.Element t : liste) {
+            g.ajouter(Blocs.rangeeTache(a, t, null, v -> Blocs.basculerTache(a, chantierId, t, () -> a.remplacer(this)),
+                    v -> a.ouvrir(new TacheScreen(a, chantierId, t.id, null))));
+        }
+        if (g.vide()) p.contenu.addView(UiKit.text(a, "Aucune tâche. Notez ce qu'il reste à faire, qui s'en occupe et quand.", 16, UiKit.ENCRE_2, false));
+        else p.contenu.addView(g.vue, UiKit.pleineLargeur());
+        p.ajouterAuPied(UiKit.boutonAction(a, "+ Ajouter une tâche", v -> a.ouvrir(new TacheScreen(a, chantierId, null, null))));
+    }
+
+    // ------------------------------------------------------------- Notes
+
+    private void notes(Page p, Chantier c) {
+        List<Chantier.Ajout> ajouts = c.derniersAjouts();
+        Blocs.Groupe g = new Blocs.Groupe(a);
+        for (Chantier.Ajout aj : ajouts) {
+            if (!Event.NOTE.equals(aj.type)) continue;
+            Chantier.Note n = c.note(aj.id);
+            if (n == null) continue;
+            String t = n.texte.replace('\n', ' ');
+            g.ajouter(Blocs.rangee(a, null, t.length() > 80 ? t.substring(0, 80) + "…" : t,
+                    FicheScreen.quand(n.creeLe) + (n.auteur.isEmpty() ? "" : " · " + n.auteur), null, true,
+                    v -> a.ouvrir(new NoteScreen(a, chantierId, n.id))));
+        }
+        if (g.vide()) p.contenu.addView(UiKit.text(a, "Aucune note. Livraison, remarque du client, à ne pas oublier…", 16, UiKit.ENCRE_2, false));
+        else p.contenu.addView(g.vue, UiKit.pleineLargeur());
+        p.ajouterAuPied(UiKit.boutonAction(a, "+ Ajouter une note", v -> a.ouvrir(new NoteScreen(a, chantierId, null))));
     }
 
     /** Bandeau cliquable : budget et bénéfice → tableau de bord. */
@@ -186,7 +235,7 @@ public final class GererScreen extends Screen {
         int aVerifier = f.aVerifier();
         if (aVerifier > 0) {
             LinearLayout alerte = carte();
-            alerte.addView(UiKit.text(a, aVerifier + (aVerifier > 1 ? " dépenses à vérifier" : " dépense à vérifier"), 18, UiKit.BLEU, true));
+            alerte.addView(UiKit.text(a, aVerifier + (aVerifier > 1 ? " dépenses à vérifier" : " dépense à vérifier"), 18, UiKit.AMBRE, true));
             alerte.addView(UiKit.text(a, "Saisies sur le terrain ou lues automatiquement : vérifiez le montant et la TVA, puis validez.", 15, UiKit.ENCRE_2, false));
             alerte.addView(UiKit.boutonContour(a, "Tout valider", v -> new AlertDialog.Builder(a)
                     .setTitle("Valider les " + aVerifier + " dépenses ?")
@@ -220,7 +269,7 @@ public final class GererScreen extends Screen {
         }
         for (int i = liste.size() - 1; i >= 0; i--) {
             Chantier.Depense d = liste.get(i);
-            TextView chip = !d.valide ? UiKit.chip(a, "À vérifier", UiKit.BLEU_FOND, UiKit.BLEU)
+            TextView chip = !d.valide ? UiKit.chip(a, "À vérifier", UiKit.AMBRE_FOND, UiKit.AMBRE)
                     : c.estARefacturer(d) ? UiKit.chipContour(a, "À refacturer")
                     : UiKit.chip(a, "Interne", UiKit.GRIS_FOND, UiKit.GRIS);
             String sous = Categories.libelle(d.categorie) + (d.date.isEmpty() ? "" : " · " + d.date)
@@ -326,6 +375,7 @@ public final class GererScreen extends Screen {
             rTitre = c.titre;
             rClient = c.client;
             rAdresse = c.adresse;
+            rTel = c.telephone;
             rMode = c.mode;
             rType = c.type;
             rMajoration = c.majorationPct;
@@ -338,12 +388,15 @@ public final class GererScreen extends Screen {
         EditText fTitre = UiKit.champTexte(a, rTitre);
         EditText fClient = UiKit.champ(a, rClient, InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
         EditText fAdresse = UiKit.champ(a, rAdresse, InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_POSTAL_ADDRESS | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
+        EditText fTel = UiKit.champ(a, rTel, InputType.TYPE_CLASS_PHONE);
+        fTel.setHint("Pour l'appeler depuis la fiche");
         EditText fBudget = UiKit.champMontant(a, rBudget);
         fBudget.setHint("Facultatif");
         Runnable garder = () -> {
             rTitre = fTitre.getText().toString().trim();
             rClient = fClient.getText().toString().trim();
             rAdresse = fAdresse.getText().toString().trim();
+            rTel = fTel.getText().toString().trim();
             rBudget = fBudget.getText().toString().trim();
         };
 
@@ -427,6 +480,7 @@ public final class GererScreen extends Screen {
 
         p.contenu.addView(UiKit.libelle(a, "Travaux", fTitre), UiKit.pleineLargeur());
         p.contenu.addView(UiKit.libelle(a, "Client", fClient), UiKit.pleineLargeur());
+        p.contenu.addView(UiKit.libelle(a, "Téléphone du client", fTel), UiKit.pleineLargeur());
         p.contenu.addView(UiKit.libelle(a, "Adresse", fAdresse), UiKit.pleineLargeur());
 
         p.ajouterAuPied(UiKit.boutonAction(a, "Enregistrer", v -> {
@@ -444,6 +498,7 @@ public final class GererScreen extends Screen {
             if (!rTitre.equals(c.titre)) data.put("titre", rTitre);
             if (!rClient.equals(c.client)) data.put("client", rClient);
             if (!rAdresse.equals(c.adresse)) data.put("adresse", rAdresse);
+            if (!rTel.equals(c.telephone)) data.put("telephone", rTel);
             if (!rType.equals(c.type)) data.put("type", rType);
             if (!rMode.equals(c.mode)) data.put("mode", rMode);
             if (rMajoration != c.majorationPct) data.put("majoration_pct", Integer.toString(rMajoration));
@@ -454,8 +509,7 @@ public final class GererScreen extends Screen {
             if (data.isEmpty() || enregistrer(chantierId, Event.CHANTIER_MODIFIE, data)) {
                 toast("Réglages enregistrés ✓");
                 rTitre = null;
-                onglet = DEPENSES;
-                a.remplacer(this);
+                a.retour();
             }
         }));
     }

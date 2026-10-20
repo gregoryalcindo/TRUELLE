@@ -143,6 +143,89 @@ public final class LocalStore {
         return f.exists() ? f : null;
     }
 
+    // ---------------------------------------------------------------- place sur le téléphone
+
+    /** Nom du fichier caché qui liste les fichiers laissés sur le Drive (même nom que dans Synchro). */
+    public static final String DISTANTS = ".distants";
+
+    /** Emplacement d'un fichier du chantier, qu'il soit présent ou non. */
+    public synchronized File emplacement(String chantierId, String cheminRelatif) {
+        if (cheminRelatif == null || cheminRelatif.isEmpty() || cheminRelatif.contains("..")) return null;
+        File dir = dossierDe(chantierId);
+        return dir == null ? null : new File(dir, cheminRelatif);
+    }
+
+    /** Chemin depuis la racine « Chantiers » (pour le retrouver sur le Drive). */
+    public synchronized String cheminDepuisRacine(String chantierId, String cheminRelatif) {
+        File dir = dossierDe(chantierId);
+        return dir == null ? null : dir.getName() + "/" + cheminRelatif;
+    }
+
+    /** Vrai si le fichier a été retiré du téléphone et n'existe plus que sur le Drive. */
+    public synchronized boolean surLeDriveSeulement(String chantierId, String cheminRelatif) {
+        File f = emplacement(chantierId, cheminRelatif);
+        return f != null && !f.exists() && lireListe(new File(f.getParentFile(), DISTANTS)).contains(f.getName());
+    }
+
+    /** Retire un fichier du téléphone (il reste sur le Drive). Renvoie les octets libérés. */
+    public synchronized long liberer(String chantierId, String cheminRelatif) throws IOException {
+        File f = emplacement(chantierId, cheminRelatif);
+        if (f == null || !f.exists()) return 0;
+        File liste = new File(f.getParentFile(), DISTANTS);
+        java.util.Set<String> noms = lireListe(liste);
+        noms.add(f.getName());
+        ecrireListe(liste, noms);
+        long taille = f.length();
+        if (!f.delete()) throw new IOException("Impossible de retirer " + f.getName());
+        return taille;
+    }
+
+    /** Le fichier est revenu sur le téléphone : on le retire de la liste. */
+    public synchronized void recupere(String chantierId, String cheminRelatif) throws IOException {
+        File f = emplacement(chantierId, cheminRelatif);
+        if (f == null) return;
+        File liste = new File(f.getParentFile(), DISTANTS);
+        java.util.Set<String> noms = lireListe(liste);
+        if (noms.remove(f.getName())) ecrireListe(liste, noms);
+    }
+
+    /** Taille occupée sur le téléphone par un chantier (octets). */
+    public synchronized long taille(String chantierId) {
+        File dir = dossierDe(chantierId);
+        return dir == null ? 0 : tailleDe(dir);
+    }
+
+    private static long tailleDe(File f) {
+        if (f.isFile()) return f.length();
+        long t = 0;
+        File[] fs = f.listFiles();
+        if (fs != null) for (File x : fs) t += tailleDe(x);
+        return t;
+    }
+
+    private static java.util.Set<String> lireListe(File f) {
+        java.util.Set<String> res = new java.util.TreeSet<>();
+        if (!f.exists()) return res;
+        try {
+            for (String l : java.nio.file.Files.readAllLines(f.toPath(), java.nio.charset.StandardCharsets.UTF_8)) {
+                if (!l.trim().isEmpty()) res.add(l.trim());
+            }
+        } catch (IOException ignored) {
+            // illisible : vide
+        }
+        return res;
+    }
+
+    private static void ecrireListe(File f, java.util.Set<String> noms) throws IOException {
+        File tmp = new File(f.getParentFile(), f.getName() + ".tmp");
+        java.nio.file.Files.write(tmp.toPath(), String.join("\n", noms).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        if (!tmp.renameTo(f)) {
+            //noinspection ResultOfMethodCallIgnored
+            f.delete();
+            if (!tmp.renameTo(f)) throw new IOException("Impossible d'écrire " + f.getName());
+        }
+    }
+
     // ---------------------------------------------------------------- infos de l'entreprise (_App/journal)
 
     /** Enregistre une modification des infos de l'entreprise (même principe : un fichier, jamais modifié). */
