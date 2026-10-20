@@ -364,7 +364,7 @@ public final class DepenseScreen extends Screen {
             LinearLayout row = UiKit.ligne(a, 8);
             for (int i = debut; i < debut + 3; i++) {
                 if (i >= courts.length) {
-                    row.addView(new View(a), UiKit.poids(1)); // garde la même largeur de bouton
+                    row.addView(new View(a), new LinearLayout.LayoutParams(0, 1, 1f)); // garde la même largeur de bouton
                     continue;
                 }
                 String[] o = courts[i];

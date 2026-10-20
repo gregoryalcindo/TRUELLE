@@ -62,7 +62,7 @@ public final class PhotosScreen extends Screen {
             Chantier.Element ph = visibles.get(i);
             rang.addView(case_(c, ph), UiKit.poids(1));
         }
-        if (rang != null) for (int k = visibles.size() % 3; k > 0 && k < 3; k++) rang.addView(new View(a), UiKit.poids(1));
+        if (rang != null) for (int k = visibles.size() % 3; k > 0 && k < 3; k++) rang.addView(new View(a), new LinearLayout.LayoutParams(0, 1, 1f));
 
         String moment = c.momentParDefaut();
         p.ajouterAuPied(UiKit.boutonAction(a, "Prendre une photo", v -> a.prendrePhoto(f -> enregistrer(a, chantierId, f, moment, () -> a.remplacer(this)))));

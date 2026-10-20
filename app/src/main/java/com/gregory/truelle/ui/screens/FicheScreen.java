@@ -150,7 +150,7 @@ public final class FicheScreen extends Screen {
         // Boutons ronds en haut : retour, photo, réglages.
         LinearLayout haut = UiKit.ligne(a, 8);
         haut.addView(rond(R.drawable.ic_back, "Retour", v -> a.retour()));
-        haut.addView(new View(a), UiKit.poids(1));
+        haut.addView(new View(a), new LinearLayout.LayoutParams(0, 1, 1f));
         haut.addView(rond(R.drawable.ic_camera, "Ajouter une photo", v -> {
             String moment = c.momentParDefaut();
             a.prendrePhoto(fs -> PhotosScreen.enregistrer(a, c.id, fs, moment, a::rafraichir));
