@@ -115,7 +115,7 @@ public final class NouveauChantierScreen extends Screen {
                 return;
             }
             long t = taux.isEmpty() ? 0 : com.gregory.truelle.data.Money.parseCentimes(taux);
-            long fo = forfait.isEmpty() ? 0 : com.gregory.truelle.data.Money.parseCentimes(forfait);
+            long fo = this.forfait.isEmpty() ? 0 : com.gregory.truelle.data.Money.parseCentimes(this.forfait);
             if (t < 0 || fo < 0) {
                 (t < 0 ? fTaux : fForfait).setError("Montant invalide");
                 return;
