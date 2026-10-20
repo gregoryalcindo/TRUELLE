@@ -26,12 +26,42 @@ public final class Finance {
     }
 
     public int tvaDefaut() {
-        return c.entreProches() ? Tva.AUCUNE : r.tvaPour(c);
+        return c.entreProches() || c.autoliquidation ? Tva.AUCUNE : r.tvaPour(c);
     }
 
     /** Entre proches : fonctionne comme un chantier pro, mais sans aucune TVA (chantier non déclaré). */
     public boolean proches() {
         return c.entreProches();
+    }
+
+    /** Pas de TVA sur nos devis et factures : entre proches, sous-traitance (autoliquidation) ou franchise. */
+    public boolean sansTvaFacturee() {
+        return proches() || c.autoliquidation || r.franchise();
+    }
+
+    /** Mention TVA obligatoire sur nos factures, ou "" (entre proches : aucune). */
+    public String mentionTva() {
+        if (proches()) return "";
+        if (c.autoliquidation) return TvaGuide.MENTION_AUTOLIQUIDATION;
+        if (r.franchise()) return TvaGuide.MENTION_FRANCHISE;
+        return "";
+    }
+
+    /**
+     * Notre devis contient-il une ligne à 5,5 % ou 10 % qui exige la certification du client ?
+     * (Pas en dessous de 1 000 € TTC, où quelques mentions suffisent.)
+     */
+    public boolean certificationRequise(Chantier.Element devis) {
+        if (!estNotreDevis(devis) || sansTvaFacturee() || autoliquidation(devis)) return false;
+        Totaux t = totaux(devis);
+        if (t.ttc < TvaGuide.SEUIL_SANS_CERTIFICATION_TTC) return false;
+        for (Integer bp : t.tvaParTaux.keySet()) if (TvaGuide.tauxReduitBatiment(bp) && t.baseParTaux.get(bp) > 0) return true;
+        return false;
+    }
+
+    /** Devis signé à taux réduit sans certification du client : risque de redressement à 20 %. */
+    public boolean certificationManquante(Chantier.Element devis) {
+        return signe(devis) && certificationRequise(devis) && !"oui".equals(devis.get("certification"));
     }
 
     public boolean recupere() {
@@ -111,7 +141,7 @@ public final class Finance {
     }
 
     public Totaux totaux(Chantier.Element devis) {
-        boolean sansTva = autoliquidation(devis) || (r.franchise() || proches()) && estNotreDevis(devis);
+        boolean sansTva = autoliquidation(devis) || (r.franchise() || proches() || c.autoliquidation) && estNotreDevis(devis);
         return totaux(lignes(devis), (int) devis.centimes("remise_bp"), sansTva);
     }
 
@@ -123,7 +153,7 @@ public final class Finance {
     }
 
     public int tvaTravaux(Chantier.Element t) {
-        if (proches()) return Tva.AUCUNE;
+        if (proches() || c.autoliquidation) return Tva.AUCUNE;
         if (!t.get("tva_bp").isEmpty()) return (int) t.centimes("tva_bp");
         return tvaDefaut();
     }
@@ -374,7 +404,7 @@ public final class Finance {
     }
 
     public int tvaFacture(Chantier.Element f) {
-        if (proches()) return Tva.AUCUNE;
+        if (proches() || c.autoliquidation) return Tva.AUCUNE;
         if (!f.get("tva_bp").isEmpty()) return (int) f.centimes("tva_bp");
         return tvaDefaut();
     }

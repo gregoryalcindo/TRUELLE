@@ -42,6 +42,8 @@ public final class Chantier {
     public String telephone = "";
     /** Identifiant de la photo de couverture ("" = la plus récente). */
     public String couverture = "";
+    /** Vrai si nous sommes sous-traitant d'une entreprise du bâtiment : factures hors taxes (autoliquidation). */
+    public boolean autoliquidation;
     /** Avancement des travaux déclaré (points de base, 0 à 10000), -1 = non renseigné. */
     public int avancementBp = -1;
     public String statut = A_DEMARRER;
@@ -271,6 +273,7 @@ public final class Chantier {
         if (e.get("titre") != null) titre = e.get("titre");
         if (e.get("telephone") != null) telephone = e.get("telephone");
         if (e.get("couverture") != null) couverture = e.get("couverture");
+        if (e.get("autoliquidation") != null) autoliquidation = "oui".equals(e.get("autoliquidation"));
         if (e.get("client") != null) client = e.get("client");
         if (e.get("adresse") != null) adresse = e.get("adresse");
         if (e.get("mode") != null) mode = MODE_REEL.equals(e.get("mode")) ? MODE_REEL : MODE_FORFAIT;

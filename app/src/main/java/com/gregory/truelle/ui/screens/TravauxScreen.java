@@ -58,7 +58,8 @@ public final class TravauxScreen extends Screen {
 
         Page p = new Page(a);
         p.entete.addView(UiKit.retour(a, "Annuler", v -> a.retour()));
-        boolean proches = c != null && c.entreProches();
+        // « proches » = pas de TVA facturée (entre proches, sous-traitance autoliquidée ou franchise).
+        boolean proches = fin != null && fin.sansTvaFacturee();
         p.entete.addView(UiKit.titre(a, edition ? "Travaux en plus" : "Nouveaux travaux", 30));
         if (c == null) return p.racine;
 

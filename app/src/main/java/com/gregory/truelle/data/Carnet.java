@@ -83,6 +83,39 @@ public final class Carnet {
                         c.titre, null, 0));
             }
 
+            // Devis signé à 5,5 % ou 10 % sans la mention signée du client : sinon, 20 % sur tout.
+            for (Chantier.Element d : c.elements(Event.DEVIS)) {
+                if (f.certificationManquante(d)) {
+                    k.alertes.add(new Alerte(c, PROBLEME, "TVA réduite : mention à faire signer",
+                            c.titre + " · sans elle, le taux normal (20 %) s'applique", null, 0));
+                }
+            }
+
+            // Tickets sans photo de la facture : la preuve de la dépense manque.
+            int sansJustif = 0;
+            for (Chantier.Depense d : c.depenses()) if (d.fichier.isEmpty()) sansJustif++;
+            if (sansJustif > 0) {
+                k.alertes.add(new Alerte(c, ATTENTION, sansJustif + (sansJustif > 1 ? " dépenses sans facture" : " dépense sans facture"),
+                        c.titre + " · prenez le ticket en photo pour garder la preuve", null, 0));
+            }
+
+            // Heures sans coût horaire : la main d'œuvre compterait pour 0 €.
+            boolean heuresACout0 = false;
+            for (Chantier.Heure h : c.heures()) if (f.tauxHeure(h) <= 0) heuresACout0 = true;
+            if (heuresACout0) {
+                k.alertes.add(new Alerte(c, ATTENTION, "Heures sans coût horaire",
+                        c.titre + " · réglez le coût d'une heure (Outils → TVA, coûts)", null, 0));
+            }
+
+            // Travaux en plus proposés depuis plus d'une semaine sans accord.
+            for (Chantier.Element t : c.elements(Event.TRAVAUX)) {
+                if (Chantier.TRAVAUX_PROPOSE.equals(t.get("statut"))
+                        && java.time.temporal.ChronoUnit.DAYS.between(java.time.Instant.ofEpochMilli(t.creeLe).atZone(java.time.ZoneId.systemDefault()).toLocalDate(), auj) >= 7) {
+                    k.alertes.add(new Alerte(c, ATTENTION, "Travaux en plus sans accord du client",
+                            c.titre + " · " + t.get("description"), null, 0));
+                }
+            }
+
             // Budget dépassé (sur un chantier pas encore terminé).
             if (!termine) {
                 for (String[] p : Postes.TOUS) {
@@ -116,6 +149,10 @@ public final class Carnet {
             }
 
             // Chantier terminé mais pas entièrement facturé : de l'argent qui s'oublie.
+            if (termine && f.retenues() > 0) {
+                k.alertes.add(new Alerte(c, ATTENTION, "Retenue de garantie : " + Money.format(f.retenues()) + " à récupérer",
+                        c.titre + " · un an après la réception des travaux", null, f.retenues()));
+            }
             if (termine) {
                 long reste = RecapFin.construire(f, false).totalTtc - f.factureTtc();
                 if (reste > 100) {

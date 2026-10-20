@@ -37,6 +37,8 @@ public final class DevisScreen extends Screen {
 
     private String sorte, libelle, prestataire, statut, remise;
     private boolean autoliquidation;
+    /** « oui » quand le client a signé la mention de TVA réduite. */
+    private String certification;
     /** Lignes en cours de modification (copie de travail). */
     List<Ligne> lignes;
     private File nouveauFichier;
@@ -140,7 +142,7 @@ public final class DevisScreen extends Screen {
         }
 
         // Lignes
-        boolean sansTvaDevis = autoliquidation || (fin.r.franchise() || c.entreProches()) && nous;
+        boolean sansTvaDevis = autoliquidation || fin.sansTvaFacturee() && nous;
         p.contenu.addView(UiKit.section(a, "Lignes du devis"));
         if (lignes.isEmpty()) p.contenu.addView(UiKit.text(a, "Aucune ligne : ajoutez les ouvrages (quantité × prix).", 16, UiKit.ENCRE_2, false));
         for (int i = 0; i < lignes.size(); i++) {
@@ -170,7 +172,8 @@ public final class DevisScreen extends Screen {
         Finance.Totaux t = Finance.totaux(lignes, nous ? remiseBp : 0, sansTvaDevis);
         LinearLayout tot = UiKit.carte(a, 8);
         tot.setBackground(UiKit.rounded(UiKit.SURFACE, dp(16), 0, 0));
-        tot.addView(UiKit.ligneChiffre(a, "Total TTC", Money.format(t.ttc), true), UiKit.pleineLargeur());
+        tot.addView(UiKit.ligneChiffre(a, sansTvaDevis ? "Total" : "Total TTC", Money.format(t.ttc), true), UiKit.pleineLargeur());
+        if (sansTvaDevis && nous && !fin.mentionTva().isEmpty()) tot.addView(UiKit.text(a, fin.mentionTva(), 14, UiKit.ENCRE_2, false));
         for (Map.Entry<Integer, Long> e : t.tvaParTaux.entrySet()) {
             if (e.getValue() > 0) tot.addView(UiKit.ligneChiffre(a, "dont TVA " + Tva.libelle(e.getKey()), Money.format(e.getValue()), false), UiKit.pleineLargeur());
         }
@@ -181,10 +184,58 @@ public final class DevisScreen extends Screen {
             long benef = t.ht - t.coutPrevu - fg;
             tot.addView(UiKit.ligneChiffre(a, "Coût prévu", Money.format(t.coutPrevu), false), UiKit.pleineLargeur());
             if (fg > 0) tot.addView(UiKit.ligneChiffre(a, "Frais généraux (" + Tva.libelle(fin.r.fraisGenerauxBp) + ")", Money.format(fg), false), UiKit.pleineLargeur());
-            TextView b = UiKit.text(a, "Bénéfice prévu : " + Money.format(benef) + (t.ht > 0 ? " (" + Finance.pourcent(Tva.arrondi(benef * 10000L, t.ht)) + ")" : ""), 17, benef < 0 ? UiKit.ROUGE : UiKit.VERT, true);
+            TextView b = UiKit.text(a, "Bénéfice prévu : " + Money.format(benef) + (t.ht > 0 ? " (" + Finance.pourcent(Tva.arrondi(benef * 10000L, t.ht)) + ")" : ""), 17, benef < 0 ? UiKit.ROUGE : UiKit.ENCRE, true);
             tot.addView(b);
         }
         p.contenu.addView(tot, UiKit.pleineLargeur());
+
+        // TVA réduite (5,5 % ou 10 %) : le client doit certifier sur le devis, sinon c'est 20 % sur tout.
+        boolean a55 = false, a10 = false;
+        for (Map.Entry<Integer, Long> e : t.baseParTaux.entrySet()) {
+            if (e.getValue() <= 0) continue;
+            if (e.getKey() == Tva.REDUIT) a55 = true;
+            if (e.getKey() == Tva.INTERMEDIAIRE) a10 = true;
+        }
+        if (nous && !sansTvaDevis && (a55 || a10)) {
+            if (certification == null) certification = edition ? existant.get("certification") : "";
+            boolean petit = t.ttc < com.gregory.truelle.data.TvaGuide.SEUIL_SANS_CERTIFICATION_TTC;
+            boolean ok = "oui".equals(certification);
+            LinearLayout cert = UiKit.carte(a, 10);
+            cert.setBackground(UiKit.rounded(ok || petit ? UiKit.SURFACE : UiKit.AMBRE_FOND, dp(16), 0, 0));
+            cert.addView(UiKit.titre(a, "TVA à " + (a55 && a10 ? "5,5 % et 10 %" : a55 ? "5,5 %" : "10 %") + " : mention du client", 19));
+            cert.addView(UiKit.text(a, petit
+                    ? "Moins de 1 000 € TTC d'entretien ou de réparation : la mention n'est pas exigée. Le devis doit indiquer le nom et l'adresse du client et du logement, la nature des travaux et « logement achevé depuis plus de 2 ans »."
+                    : "Le client doit recopier et signer cette mention sur le devis (ou la facture). Sans elle, le taux normal de 20 % s'applique à tout le chantier.",
+                    15, petit || ok ? UiKit.ENCRE_2 : UiKit.AMBRE, !petit && !ok));
+            String mention = (a10 ? com.gregory.truelle.data.TvaGuide.MENTION_DEVIS_10 : "") + (a10 && a55 ? "\n\n" : "")
+                    + (a55 ? com.gregory.truelle.data.TvaGuide.MENTION_DEVIS_55 : "");
+            TextView mt = UiKit.text(a, mention, 14, UiKit.ENCRE, false);
+            mt.setPadding(dp(12), dp(10), dp(12), dp(10));
+            mt.setBackground(UiKit.rounded(UiKit.FOND, dp(10), 0, 0));
+            mt.setTextIsSelectable(true);
+            cert.addView(mt, UiKit.pleineLargeur());
+            cert.addView(UiKit.boutonContour(a, "Copier la mention", v -> {
+                android.content.ClipboardManager cm = (android.content.ClipboardManager) a.getSystemService(android.content.Context.CLIPBOARD_SERVICE);
+                if (cm != null) cm.setPrimaryClip(android.content.ClipData.newPlainText("Mention TVA", mention));
+                toast("Mention copiée");
+            }), UiKit.pleineLargeur());
+            if (!petit) {
+                cert.addView(UiKit.text(a, "Le client l'a signée ?", 16, UiKit.ENCRE_2, false));
+                cert.addView(UiKit.choix(a, new String[][]{{"", "Pas encore"}, {"oui", "Oui, signée"}}, ok ? "oui" : "", choisi -> {
+                    garder.run();
+                    certification = choisi;
+                    if (edition) {
+                        Map<String, String> d = new java.util.LinkedHashMap<>();
+                        d.put("cible", existant.id);
+                        d.put("certification", choisi);
+                        d.put("certification_le", "oui".equals(choisi) ? com.gregory.truelle.data.Dates.aujourdhui() : "");
+                        if (enregistrer(chantierId, com.gregory.truelle.data.Event.CORRECTION, d) && "oui".equals(choisi)) toast("Mention signée ✓");
+                    }
+                    a.remplacer(this);
+                }), UiKit.pleineLargeur());
+            }
+            p.contenu.addView(cert, UiKit.pleineLargeur());
+        }
 
         // Statut
         if (!remplace) {
@@ -236,6 +287,10 @@ public final class DevisScreen extends Screen {
                 data.put("lignes", lignesTxt);
                 data.put("remise_bp", Integer.toString(nous ? rb : 0));
                 data.put("autoliquidation", autoliquidation ? "oui" : "non");
+                if ("oui".equals(certification)) {
+                    data.put("certification", "oui");
+                    data.put("certification_le", com.gregory.truelle.data.Dates.aujourdhui());
+                }
                 data.put("montant_centimes", Long.toString(tt.ttc));
                 data.put("statut", statut);
                 data.put("version", "1");

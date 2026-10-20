@@ -139,7 +139,7 @@ public final class RentabiliteScreen extends Screen {
     }
 
     private static boolean sansTva(Finance f) {
-        return f.proches() || f.r.franchise();
+        return f.sansTvaFacturee();
     }
 
     private TextView etat(Finance f, Finance.Synthese estime) {

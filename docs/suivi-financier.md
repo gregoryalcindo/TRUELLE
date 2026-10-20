@@ -103,3 +103,13 @@ Fonctionnement identique à un chantier professionnel : devis en lignes, dépens
 budget par poste, bénéfice, acompte / situation / solde, PDF. Seule différence : aucune TVA (chantier non déclaré).
 Tous les taux sont forcés à 0 %, les coûts sont comptés au prix payé, pas de mention TVA sur le PDF.
 La main d'œuvre au forfait se met comme une ligne du devis (poste « Main d'œuvre »).
+
+## TVA : guide et contrôles (revue de Karim, octobre 2026)
+
+- Guide « Quel taux de TVA ? » (Outils, et lien sous chaque choix de taux) : 5 questions → 20 %, 10 %, 5,5 % ou autoliquidation, avec exemples.
+- Taux réduits 5,5 % / 10 % : le client certifie sur le devis ou la facture (CGI 279-0 bis 3 et 278-0 bis A IV ; modèles BOI-LETTRE-000280). Sans certification : taux normal sur tout. Pas exigée sous 1 000 € TTC d'entretien ou de réparation (BOI-TVA-LIQ-30-20-90-40 § 90).
+- Le devis affiche la mention à faire signer, avec « Copier » ; on note « signée » ; le Carnet alerte (rouge) un devis signé à taux réduit sans mention.
+- Sous-traitance du bâtiment (CGI 283-2 nonies) : réglage par chantier, factures hors taxes avec mention d'autoliquidation.
+- Franchise : « TVA non applicable, art. 293 B du CGI » (référence admise jusqu'au 30 juin 2028 après le passage au CIBS le 1er janvier 2027).
+- Écran PDF : « À reporter sur votre facture » (mentions TVA) avec bouton Copier.
+- Carnet : alertes ajoutées — dépenses sans facture, heures sans coût horaire, travaux en plus sans accord depuis 7 jours, retenue de garantie à récupérer, chantier terminé avec reste à facturer.

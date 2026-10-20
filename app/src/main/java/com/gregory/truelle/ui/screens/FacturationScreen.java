@@ -55,7 +55,8 @@ public final class FacturationScreen extends Screen {
         Chantier.Element existant = (c != null && ligneId != null) ? c.element(ligneId) : null;
         boolean edition = existant != null;
         Finance fin = c == null ? null : a.finance(c);
-        boolean proches = c != null && c.entreProches();
+        // « proches » = pas de TVA facturée (entre proches, sous-traitance autoliquidée ou franchise).
+        boolean proches = fin != null && fin.sansTvaFacturee();
         if (libelle == null && c != null) {
             type = edition ? existant.get("type") : ACOMPTE;
             libelle = edition ? existant.get("libelle") : "Acompte";

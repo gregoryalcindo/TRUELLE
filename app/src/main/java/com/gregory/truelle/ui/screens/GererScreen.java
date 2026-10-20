@@ -52,7 +52,7 @@ public final class GererScreen extends Screen {
     private String onglet;
 
     // Réglages du chantier en cours d'édition (gardés si l'écran est redessiné).
-    private String rTitre, rClient, rAdresse, rMode, rBudget, rType, rTel;
+    private String rTitre, rClient, rAdresse, rMode, rBudget, rType, rTel, rAutoliq;
     private int rMajoration = -1, rTva = -1, rRetenue = -1, rAvancement = -2;
 
     public GererScreen(MainActivity a, String chantierId, String onglet) {
@@ -376,6 +376,7 @@ public final class GererScreen extends Screen {
             rClient = c.client;
             rAdresse = c.adresse;
             rTel = c.telephone;
+            rAutoliq = c.autoliquidation ? "oui" : "non";
             rMode = c.mode;
             rType = c.type;
             rMajoration = c.majorationPct;
@@ -452,8 +453,19 @@ public final class GererScreen extends Screen {
             // TVA et retenue
             LinearLayout blocTva = UiKit.colonne(a, 8);
             blocTva.addView(UiKit.titre(a, proches ? "Garantie" : "TVA et garantie", 20));
+            if (!proches) {
+                blocTva.addView(UiKit.text(a, "Pour qui travaillez-vous ?", 16, UiKit.ENCRE_2, false));
+                blocTva.addView(UiKit.choix(a, new String[][]{{"non", "Un particulier ou une entreprise"}, {"oui", "Une entreprise du bâtiment (sous-traitance)"}}, rAutoliq, choisi -> {
+                    garder.run();
+                    rAutoliq = choisi;
+                    a.remplacer(this);
+                }), UiKit.pleineLargeur());
+            }
             if (proches) {
                 blocTva.addView(UiKit.text(a, "Chantier entre proches : aucune TVA, sur les devis comme sur les paiements.", 15, UiKit.ENCRE_2, false));
+            } else if ("oui".equals(rAutoliq)) {
+                blocTva.addView(UiKit.text(a, "Sous-traitance du bâtiment : vos devis et factures sont hors taxes, avec la mention « Autoliquidation ». "
+                        + "C'est l'entreprise qui vous fait travailler qui déclare la TVA.", 15, UiKit.ENCRE_2, false));
             } else if (f.r.franchise()) {
                 blocTva.addView(UiKit.text(a, "Entreprise en franchise de TVA (réglages de l'appli) : pas de TVA facturée.", 15, UiKit.ENCRE_2, false));
             } else {
@@ -499,11 +511,12 @@ public final class GererScreen extends Screen {
             if (!rClient.equals(c.client)) data.put("client", rClient);
             if (!rAdresse.equals(c.adresse)) data.put("adresse", rAdresse);
             if (!rTel.equals(c.telephone)) data.put("telephone", rTel);
+            if ("oui".equals(rAutoliq) != c.autoliquidation) data.put("autoliquidation", rAutoliq);
             if (!rType.equals(c.type)) data.put("type", rType);
             if (!rMode.equals(c.mode)) data.put("mode", rMode);
             if (rMajoration != c.majorationPct) data.put("majoration_pct", Integer.toString(rMajoration));
             if (budget != c.budgetMaterielCentimes) data.put("budget_materiel_centimes", Long.toString(budget));
-            if (!proches && !f.r.franchise() && rTva != f.tvaDefaut()) data.put("tva_defaut_bp", Integer.toString(rTva));
+            if (!proches && !"oui".equals(rAutoliq) && !f.r.franchise() && rTva != f.tvaDefaut()) data.put("tva_defaut_bp", Integer.toString(rTva));
             if (rRetenue != c.retenueBp) data.put("retenue_bp", Integer.toString(rRetenue));
             if (rAvancement != c.avancementBp && rAvancement >= 0) data.put("avancement_bp", Integer.toString(rAvancement));
             if (data.isEmpty() || enregistrer(chantierId, Event.CHANTIER_MODIFIE, data)) {
@@ -516,7 +529,7 @@ public final class GererScreen extends Screen {
 
     /** « (TTC) » seulement quand il y a de la TVA. */
     private static String ttc(Finance f) {
-        return f.proches() || f.r.franchise() ? "" : " (TTC)";
+        return f.sansTvaFacturee() ? "" : " (TTC)";
     }
 
     private View plusMoins(String valeur, Runnable moins, Runnable plus) {

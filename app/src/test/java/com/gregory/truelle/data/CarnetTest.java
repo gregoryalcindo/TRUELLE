@@ -120,12 +120,12 @@ public class CarnetTest {
             assertEquals(50000, k.encaisseMois);
             assertEquals(40000, k.encaisseMoisPrecedent);
             assertEquals(Long.valueOf(25), k.evolutionPct());
-            assertEquals(2, k.alertes.size());
+            assertEquals(3, k.alertes.size());                       // retard, à vérifier, sans facture
             assertEquals(Carnet.PROBLEME, k.alertes.get(0).niveau);  // le retard d'abord
             assertEquals("f1", k.alertes.get(0).facture.id);
             assertEquals(Carnet.ATTENTION, k.alertes.get(1).niveau); // 1 ticket à vérifier
             assertEquals(1, k.enCours.size());
-            assertEquals(4, k.nombreAFaire());
+            assertEquals(5, k.nombreAFaire());
         } finally {
             Dates.aujourdhuiFixe = null;
         }
@@ -149,5 +149,51 @@ public class CarnetTest {
         assertEquals(1, k.alertes.size());
         assertEquals(Carnet.ATTENTION, k.alertes.get(0).niveau);
         assertTrue(k.alertes.get(0).titre.contains("à facturer"));
+    }
+
+    @Test
+    public void tva_guideEtCertification() {
+        TvaGuide.Reponses r = new TvaGuide.Reponses();
+        assertEquals(1, TvaGuide.prochaineQuestion(r));
+        r.sousTraitant = false;
+        r.neufOuAgrandissement = false;
+        r.logementPlusDe2Ans = true;
+        r.exclu = false;
+        assertEquals(5, TvaGuide.prochaineQuestion(r));
+        r.renovationEnergetique = false;
+        assertEquals(0, TvaGuide.prochaineQuestion(r));
+        assertEquals(Tva.INTERMEDIAIRE, TvaGuide.resultat(r).tauxBp);
+        r.renovationEnergetique = true;
+        assertEquals(Tva.REDUIT, TvaGuide.resultat(r).tauxBp);
+        r.exclu = true;
+        assertEquals(Tva.NORMAL, TvaGuide.resultat(r).tauxBp);
+        TvaGuide.Reponses st = new TvaGuide.Reponses();
+        st.sousTraitant = true;
+        assertTrue(TvaGuide.resultat(st).autoliquidation);
+        assertTrue(TvaGuide.MENTION_FACTURE_55.endsWith("rénovation énergétique."));
+
+        // Devis signé à 10 % au-dessus de 1 000 € TTC, sans certification : alerte rouge.
+        Ligne l = new Ligne();
+        l.designation = "Carrelage";
+        l.quantiteMilli = 1000;
+        l.puHtCentimes = 200000;
+        l.tvaBp = Tva.INTERMEDIAIRE;
+        List<Event> e = new ArrayList<>(Arrays.asList(
+                ev("c", Event.CHANTIER_CREE, "titre", "SdB"),
+                ev("d", Event.DEVIS, "sorte", "nous", "statut", "signe", "lignes", Ligne.encoder(Arrays.asList(l)))));
+        Finance f = new Finance(Chantier.replay("c1", e), new Reglages());
+        Chantier.Element d = f.c.elements(Event.DEVIS).get(0);
+        assertTrue(f.certificationManquante(d));
+        assertEquals(1, Carnet.construire(Arrays.asList(f.c), new Reglages()).alertes.size());
+        e.add(ev("x", Event.CORRECTION, "cible", "d", "certification", "oui"));
+        Finance f2 = new Finance(Chantier.replay("c1", e), new Reglages());
+        assertFalse(f2.certificationManquante(f2.c.elements(Event.DEVIS).get(0)));
+
+        // Sous-traitant d'une entreprise : pas de TVA, mention d'autoliquidation.
+        e.add(ev("m", Event.CHANTIER_MODIFIE, "autoliquidation", "oui"));
+        Finance f3 = new Finance(Chantier.replay("c1", e), new Reglages());
+        assertEquals(0, f3.totaux(f3.c.elements(Event.DEVIS).get(0)).tva);
+        assertEquals(TvaGuide.MENTION_AUTOLIQUIDATION, RecapFin.construire(f3, false).mentionTva);
+        assertFalse(f3.certificationRequise(f3.c.elements(Event.DEVIS).get(0)));
     }
 }

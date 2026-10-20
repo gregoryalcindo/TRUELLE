@@ -61,6 +61,8 @@ public final class RecapFin {
     public long retenues;
     /** Mention légale de TVA à imprimer (franchise), vide sinon. */
     public String mentionTva = "";
+    /** Mentions de certification (taux réduits) à reporter sur la vraie facture. */
+    public final List<String> mentionsFacture = new ArrayList<>();
 
     public long resteAPayer() {
         return totalTtc - dejaRegle - retenues;
@@ -70,7 +72,7 @@ public final class RecapFin {
         Chantier c = f.c;
         RecapFin r = new RecapFin();
 
-        boolean sansTva = f.r.franchise() || f.proches();
+        boolean sansTva = f.sansTvaFacturee();
         String suffixe = sansTva ? "" : " (HT)";
         Section devis = new Section("Devis signés" + suffixe);
         for (Chantier.Element el : c.elements(Event.DEVIS)) {
@@ -123,7 +125,10 @@ public final class RecapFin {
         r.totalTtc = r.totalHt + r.totalTva;
         r.dejaRegle = f.encaisse();
         r.retenues = f.retenues();
-        if (f.r.franchise() && !f.proches()) r.mentionTva = "TVA non applicable, art. 293 B du CGI.";
+        r.mentionTva = f.mentionTva();
+        // Taux réduits du bâtiment : la mention de certification à reporter sur la facture.
+        if (r.tvaParTaux.containsKey(Tva.REDUIT) && r.tvaParTaux.get(Tva.REDUIT) > 0) r.mentionsFacture.add(TvaGuide.MENTION_FACTURE_55);
+        if (r.tvaParTaux.containsKey(Tva.INTERMEDIAIRE) && r.tvaParTaux.get(Tva.INTERMEDIAIRE) > 0) r.mentionsFacture.add(TvaGuide.MENTION_FACTURE_10);
         return r;
     }
 }

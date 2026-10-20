@@ -307,6 +307,16 @@ public final class UiKit {
         bloc.addView(text(c, titre, 16, ENCRE_2, false));
         bloc.addView(choixTva(c, bp, onChoix), pleineLargeur());
         if (aide != null && !aide.isEmpty()) bloc.addView(text(c, aide, 15, ENCRE_2, false));
+        // « Quel taux ? » : le guide de Karim, qui peut appliquer directement le taux trouvé.
+        if (c instanceof com.gregory.truelle.MainActivity) {
+            com.gregory.truelle.MainActivity a = (com.gregory.truelle.MainActivity) c;
+            TextView guide = text(c, "Quel taux choisir ? Ouvrir le guide TVA ›", 16, ENCRE, true);
+            guide.setPaintFlags(guide.getPaintFlags() | android.graphics.Paint.UNDERLINE_TEXT_FLAG);
+            guide.setMinHeight(dp(c, 44));
+            guide.setGravity(Gravity.CENTER_VERTICAL);
+            guide.setOnClickListener(v -> a.ouvrir(new com.gregory.truelle.ui.screens.TvaGuideScreen(a, onChoix)));
+            bloc.addView(guide);
+        }
         return bloc;
     }
 

@@ -5,6 +5,7 @@ import android.content.Intent;
 import android.net.Uri;
 import android.view.View;
 import android.widget.LinearLayout;
+import android.widget.TextView;
 
 import androidx.core.content.FileProvider;
 
@@ -108,6 +109,28 @@ public final class FinChantierScreen extends Screen {
         bloc.addView(UiKit.ligneChiffre(a, "Déjà réglé", Money.format(recap.dejaRegle), false), UiKit.pleineLargeur());
         if (recap.retenues > 0) bloc.addView(UiKit.ligneChiffre(a, "Retenue de garantie", Money.format(recap.retenues), false), UiKit.pleineLargeur());
         if (!recap.mentionTva.isEmpty()) bloc.addView(UiKit.text(a, recap.mentionTva, 14, UiKit.ENCRE_2, false));
+        // Mentions que Karim demande de reporter sur la vraie facture (faite à part).
+        java.util.List<String> mentions = new java.util.ArrayList<>();
+        if (!recap.mentionTva.isEmpty()) mentions.add(recap.mentionTva);
+        mentions.addAll(recap.mentionsFacture);
+        if (!mentions.isEmpty()) {
+            LinearLayout m = UiKit.colonne(a, 8);
+            m.setPadding(dp(14), dp(12), dp(14), dp(12));
+            m.setBackground(UiKit.rounded(UiKit.FOND, dp(12), 0, 0));
+            m.addView(UiKit.text(a, "À reporter sur votre facture", 16, UiKit.ENCRE, true));
+            for (String txt : mentions) {
+                TextView t = UiKit.text(a, txt, 14, UiKit.ENCRE_2, false);
+                t.setTextIsSelectable(true);
+                m.addView(t);
+            }
+            String tout = String.join("\n\n", mentions);
+            m.addView(UiKit.boutonContour(a, "Copier les mentions", v -> {
+                android.content.ClipboardManager cm = (android.content.ClipboardManager) a.getSystemService(android.content.Context.CLIPBOARD_SERVICE);
+                if (cm != null) cm.setPrimaryClip(android.content.ClipData.newPlainText("Mentions facture", tout));
+                toast("Mentions copiées");
+            }), UiKit.pleineLargeur());
+            bloc.addView(m, UiKit.pleineLargeur());
+        }
         bloc.addView(UiKit.ligneChiffre(a, "Reste à payer", Money.format(recap.resteAPayer()), true), UiKit.pleineLargeur());
 
         RecapFin avec = RecapFin.construire(a.finance(c), true);

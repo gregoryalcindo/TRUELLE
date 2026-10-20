@@ -273,7 +273,7 @@ public final class FicheScreen extends Screen {
         LinearLayout gauche = UiKit.colonne(a, 2);
         // Sans budget, le bénéfice n'est pas estimable : on montre ce qui est vendu, pas un faux bénéfice.
         boolean estimable = conso >= 0;
-        boolean sansTva = f.proches() || f.r.franchise();
+        boolean sansTva = f.sansTvaFacturee();
         gauche.addView(UiKit.text(a, estimable ? "Bénéfice estimé" : sansTva ? "Montant du chantier" : "Montant du chantier (HT)", 14, UiKit.ENCRE_2, false));
         TextView b = UiKit.titre(a, estimable ? Money.formatCourt(s.benefice) : f.venduHt() > 0 ? Money.formatCourt(f.venduHt()) : "—", 34);
         if (estimable && s.benefice < 0) b.setTextColor(UiKit.ROUGE);
@@ -394,7 +394,7 @@ public final class FicheScreen extends Screen {
 
     private View sections(Chantier c, Finance f) {
         Blocs.Groupe g = new Blocs.Groupe(a);
-        boolean sansTva = f.proches() || f.r.franchise();
+        boolean sansTva = f.sansTvaFacturee();
 
         int nousSignes = 0, sousTraitants = 0;
         long devisTtc = 0;
@@ -407,8 +407,19 @@ public final class FicheScreen extends Screen {
             } else sousTraitants++;
         }
         int nDevis = c.elements(Event.DEVIS).size();
-        g.ajouter(Blocs.rangee(a, null, sansTva ? "Devis" : "Devis (TTC)", nDevis == 0 ? "Aucun devis" : nousSignes + " signé" + (nousSignes > 1 ? "s" : "")
-                        + (sousTraitants > 0 ? " · " + sousTraitants + " sous-traitant" + (sousTraitants > 1 ? "s" : "") : ""),
+        boolean mentionManquante = false;
+        for (Chantier.Element d : c.elements(Event.DEVIS)) if (f.certificationManquante(d)) mentionManquante = true;
+        CharSequence sousDevis = nDevis == 0 ? "Aucun devis" : nousSignes + " signé" + (nousSignes > 1 ? "s" : "")
+                + (sousTraitants > 0 ? " · " + sousTraitants + " sous-traitant" + (sousTraitants > 1 ? "s" : "") : "");
+        if (mentionManquante) {
+            android.text.SpannableStringBuilder sb = new android.text.SpannableStringBuilder(sousDevis + " · ");
+            int debut = sb.length();
+            sb.append("mention TVA à faire signer");
+            sb.setSpan(new android.text.style.ForegroundColorSpan(UiKit.ROUGE), debut, sb.length(), 0);
+            sb.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD), debut, sb.length(), 0);
+            sousDevis = sb;
+        }
+        g.ajouter(Blocs.rangee(a, null, sansTva ? "Devis" : "Devis (TTC)", sousDevis,
                 devisTtc > 0 ? Money.formatCourt(devisTtc) : null, true, v -> a.ouvrir(new GererScreen(a, c.id, GererScreen.DEVIS))));
 
         int nDep = c.depenses().size(), aVerif = f.aVerifier();

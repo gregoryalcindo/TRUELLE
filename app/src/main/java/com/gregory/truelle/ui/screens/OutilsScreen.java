@@ -38,6 +38,11 @@ public final class OutilsScreen extends Screen {
         l2.addView(tuile("HT ↔ TTC", R.drawable.ic_euro, v -> a.ouvrir(new CalculScreen(a, CalculScreen.TVA))), UiKit.poids(1));
         p.contenu.addView(l2, UiKit.pleineLargeur());
 
+        LinearLayout lTva = UiKit.ligne(a, 10);
+        View guide = tuile("Quel taux de TVA ? Le guide", R.drawable.ic_tache, v -> a.ouvrir(new TvaGuideScreen(a, null)));
+        lTva.addView(guide, UiKit.poids(1));
+        p.contenu.addView(lTva, UiKit.pleineLargeur());
+
         p.contenu.addView(sousTitre("Au quotidien"));
         Blocs.Groupe g = new Blocs.Groupe(a);
         List<Chantier> tous = store().chantiers();
