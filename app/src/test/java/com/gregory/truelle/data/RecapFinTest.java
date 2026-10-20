@@ -25,24 +25,25 @@ public class RecapFinTest {
 
     @Test
     public void recap_auReel_avecAnnexesEtSignatures() {
-        add("c", Event.CHANTIER_CREE, "titre", "Salle de bain", "mode", "reel", "majoration_pct", "10");
+        add("c", Event.CHANTIER_CREE, "titre", "Salle de bain", "mode", "reel", "majoration_pct", "10", "tva_defaut_bp", "0");
         add("d1", Event.DEVIS, "sorte", "nous", "statut", "signe", "montant_centimes", "500000", "libelle", "Devis initial");
         add("d2", Event.DEVIS, "sorte", "sous_traitant", "statut", "signe", "montant_centimes", "120000");
         add("t1", Event.TRAVAUX, "description", "Mitigeur", "statut", "accepte", "montant_centimes", "15000",
                 "signe_le", "08/10/2026", "signature", "Travaux en plus/sig.png");
         add("t2", Event.TRAVAUX, "description", "Niche", "statut", "propose", "montant_centimes", "30000");
-        add("e1", Event.DEPENSE, "montant_centimes", "10000", "fournisseur", "Point P", "date", "12/10/2026", "fichier", "Dépenses/a.pdf");
-        add("e2", Event.DEPENSE, "montant_centimes", "5000", "fournisseur", "Essence", "refacturer", "non", "fichier", "Dépenses/b.pdf");
-        add("e3", Event.DEPENSE, "montant_centimes", "2000", "fournisseur", "Quincaillerie");
+        add("e1", Event.DEPENSE, "montant_centimes", "10000", "tva_bp", "0", "fournisseur", "Point P", "date", "12/10/2026", "fichier", "Dépenses/a.pdf");
+        add("e2", Event.DEPENSE, "montant_centimes", "5000", "tva_bp", "0", "fournisseur", "Essence", "refacturer", "non", "fichier", "Dépenses/b.pdf");
+        add("e3", Event.DEPENSE, "montant_centimes", "2000", "tva_bp", "0", "fournisseur", "Quincaillerie");
         add("f1", Event.FACTURATION, "libelle", "Acompte", "statut", "encaisse", "montant_centimes", "150000");
 
-        RecapFin r = RecapFin.construire(Chantier.replay("c1", ev), true);
+        RecapFin r = RecapFin.construire(new Finance(Chantier.replay("c1", ev), new Reglages()), true);
 
         assertEquals(3, r.sections.size());
         assertEquals(500000, r.sections.get(0).total);
         assertEquals(15000, r.sections.get(1).total);
         assertEquals(13200, r.sections.get(2).total);          // (100 + 20) € + 10 %
         assertEquals(528200, r.totalTtc);
+        assertEquals(528200, r.totalHt);
         assertEquals(378200, r.resteAPayer());
         assertEquals(1, r.annexes.size());                       // seule la facture Point P (refacturée, avec fichier)
         assertTrue(r.annexes.get(0).titre.startsWith("Annexe 1 — Point P"));
@@ -51,10 +52,10 @@ public class RecapFinTest {
 
     @Test
     public void recap_auForfait_sansFacturesFournisseurs() {
-        add("c", Event.CHANTIER_CREE, "titre", "Toiture", "mode", "forfait");
+        add("c", Event.CHANTIER_CREE, "titre", "Toiture", "mode", "forfait", "tva_defaut_bp", "0");
         add("d1", Event.DEVIS, "sorte", "nous", "statut", "signe", "montant_centimes", "800000");
         add("e1", Event.DEPENSE, "montant_centimes", "40000", "fichier", "Dépenses/a.pdf");
-        RecapFin r = RecapFin.construire(Chantier.replay("c1", ev), true);
+        RecapFin r = RecapFin.construire(new Finance(Chantier.replay("c1", ev), new Reglages()), true);
         assertEquals(1, r.sections.size());
         assertEquals(0, r.annexes.size());
         assertEquals(800000, r.totalTtc);

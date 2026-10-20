@@ -27,7 +27,10 @@ public final class DossierDepenses {
                 if (!dep.categorie.equals(cat[0])) continue;
                 String nom = dep.fournisseur.isEmpty() ? "Dépense" : dep.fournisseur;
                 StringBuilder detail = new StringBuilder(dep.date);
-                detail.append(detail.length() > 0 ? " · " : "").append(c.estARefacturer(dep) ? "refacturée" : "interne");
+                detail.append(detail.length() > 0 ? " · " : "").append("HT ").append(Money.format(Finance.htDepense(dep)))
+                        .append(" · TVA ").append(Tva.libelle(Finance.tvaDepense(dep)))
+                        .append(" · ").append(c.estARefacturer(dep) ? "refacturée" : "interne");
+                if (!dep.valide) detail.append(" · à vérifier");
                 if (!dep.fichier.isEmpty()) {
                     n++;
                     detail.append(" · facture ").append(n);

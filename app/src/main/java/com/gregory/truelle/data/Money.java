@@ -40,6 +40,13 @@ public final class Money {
         return (negative ? "-" : "") + grouped + "," + (cents < 10 ? "0" : "") + cents + " €";
     }
 
+    /** Arrondi à l'euro, pour les tableaux serrés : 123450 → « 1 235 € ». */
+    public static String formatCourt(long centimes) {
+        long e = Math.abs(centimes) / 100 + (Math.abs(centimes) % 100 >= 50 ? 1 : 0);
+        String f = format(e * 100);
+        return (centimes < 0 && e > 0 ? "-" : "") + f.substring(0, f.length() - 5) + " €";
+    }
+
     /** Pour réafficher un montant dans un champ de saisie : 123450 → « 1234,50 ». */
     public static String toInput(long centimes) {
         long cents = centimes % 100;

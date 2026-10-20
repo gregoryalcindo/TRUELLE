@@ -49,6 +49,12 @@ public final class LocalStore {
 
     /** Crée le dossier du chantier et enregistre l'événement de création. */
     public synchronized Chantier creerChantier(String titre, String client, String adresse, String mode, String auteur) throws IOException {
+        return creerChantier(titre, client, adresse, mode, auteur, null);
+    }
+
+    /** {@code extra} : réglages en plus à la création (type, taux_convenu_centimes…). */
+    public synchronized Chantier creerChantier(String titre, String client, String adresse, String mode, String auteur,
+                                              Map<String, String> extra) throws IOException {
         String id = UUID.randomUUID().toString();
         String dossier = nomDossier(prochainNumero(), titre, client);
         File dir = new File(root, dossier);
@@ -69,6 +75,7 @@ public final class LocalStore {
         data.put("adresse", adresse);
         data.put("mode", Chantier.MODE_REEL.equals(mode) ? Chantier.MODE_REEL : Chantier.MODE_FORFAIT);
         data.put("majoration_pct", "0");
+        if (extra != null) data.putAll(extra);
         writeEvent(dir, Event.create(Event.CHANTIER_CREE, id, auteur, data));
         return charger(id);
     }

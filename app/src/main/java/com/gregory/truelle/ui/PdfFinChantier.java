@@ -75,20 +75,47 @@ public final class PdfFinChantier {
 
     private void recapitulatif(LocalStore store, Chantier ch, RecapFin r, Map<String, String> ent) {
         nouvellePage();
-        enteteEtChantier(ch, ent, "RÉCAPITULATIF", "DE FIN DE CHANTIER");
+        boolean proches = ch.entreProches();
+        if (proches) {
+            pied = "Décompte entre proches — achats remboursés au prix payé, tickets en annexe.";
+            enteteEtChantier(ch, ent, "DÉCOMPTE", "DES TRAVAUX");
+        } else {
+            enteteEtChantier(ch, ent, "RÉCAPITULATIF", "DE FIN DE CHANTIER");
+        }
 
-        sections(r.sections, "Aucun montant à récapituler : ajoutez les devis signés, travaux acceptés ou matériel refacturé.");
+        sections(r.sections, proches ? "Aucun montant : ajoutez les achats, les heures ou les travaux convenus."
+                : "Aucun montant à récapituler : ajoutez les devis signés, travaux acceptés ou matériel refacturé.");
 
-        // Totaux.
-        besoin(80);
+        // Totaux : HT, TVA par taux, TTC, déjà réglé, retenue, reste.
+        java.util.List<String[]> lignes = new java.util.ArrayList<>();
+        boolean avecTva = r.totalTva > 0;
+        if (avecTva) {
+            lignes.add(new String[]{"Total HT", Money.format(r.totalHt), ""});
+            for (Map.Entry<Integer, Long> e : r.tvaParTaux.entrySet()) {
+                lignes.add(new String[]{"TVA " + com.gregory.truelle.data.Tva.libelle(e.getKey()), Money.format(e.getValue()), ""});
+            }
+        }
+        lignes.add(new String[]{avecTva ? "Total TTC" : "Total", Money.format(r.totalTtc), avecTva ? "g" : ""});
+        if (r.dejaRegle > 0) lignes.add(new String[]{proches ? "Déjà versé" : "Déjà réglé", "− " + Money.format(r.dejaRegle), ""});
+        if (r.retenues > 0) lignes.add(new String[]{"Retenue de garantie", "− " + Money.format(r.retenues), ""});
+        lignes.add(new String[]{proches ? "Reste à verser" : "Reste à payer", Money.format(r.resteAPayer()), "g"});
+        float hBox = 12 + 20 * lignes.size();
+        besoin(hBox + 20);
         float xBox = L - M - 250;
         Paint p = new Paint();
         p.setColor(FOND);
-        c.drawRect(xBox, y, L - M, y + 72, p);
-        ligneTotal("Total TTC", Money.format(r.totalTtc), xBox + 12, y + 10, false);
-        ligneTotal("Déjà réglé", Money.format(r.dejaRegle), xBox + 12, y + 30, false);
-        ligneTotal("Reste à payer", Money.format(r.resteAPayer()), xBox + 12, y + 50, true);
-        y += 92;
+        c.drawRect(xBox, y, L - M, y + hBox, p);
+        float yl = y + 10;
+        for (String[] l : lignes) {
+            ligneTotal(l[0], l[1], xBox + 12, yl, !l[2].isEmpty());
+            yl += 20;
+        }
+        y += hBox + 12;
+        if (!r.mentionTva.isEmpty()) {
+            besoin(20);
+            y = texte(r.mentionTva, M, y, 9, false, GRIS, L - 2 * M) + 8;
+        }
+        y += 8;
 
         // Accords signés.
         if (!r.signatures.isEmpty()) {
@@ -113,7 +140,8 @@ public final class PdfFinChantier {
         }
 
         besoin(30);
-        texte("Montants TTC. Ce récapitulatif accompagne la facture et ne la remplace pas.", M, y + 6, 8.5f, false, GRIS, L - 2 * M);
+        texte(proches ? "Montants payés, tickets et factures d'achat en annexe."
+                : "Ce récapitulatif accompagne la facture et ne la remplace pas.", M, y + 6, 8.5f, false, GRIS, L - 2 * M);
     }
 
     /** Sections de lignes « libellé / détail / montant » avec sous-totaux. */

@@ -69,6 +69,14 @@ public final class AppReglagesScreen extends Screen {
         }
         p.contenu.addView(drive, UiKit.pleineLargeur());
 
+        // --- Suivi financier (TVA, coût horaire, frais généraux…)
+        com.gregory.truelle.data.Reglages rg = a.reglages();
+        String resumeFin = (rg.franchise() ? "Franchise de TVA" : "TVA facturée, " + com.gregory.truelle.data.Tva.libelle(rg.tvaDefautBp) + " par défaut")
+                + (rg.recupereTva ? " · TVA des achats récupérée" : " · achats comptés TTC")
+                + (rg.tauxHoraireCentimes > 0 ? " · " + com.gregory.truelle.data.Money.format(rg.tauxHoraireCentimes) + "/h" : "");
+        p.contenu.addView(UiKit.ligneListe(a, "Suivi financier", resumeFin, null, null,
+                v -> a.ouvrir(new ReglagesFinanceScreen(a))), UiKit.pleineLargeur());
+
         // --- Utilisateur de ce téléphone
         EditText prenom = UiKit.champ(a, a.auteur(), InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
         p.contenu.addView(UiKit.libelle(a, "Prénom de la personne qui utilise ce téléphone", prenom), UiKit.pleineLargeur());

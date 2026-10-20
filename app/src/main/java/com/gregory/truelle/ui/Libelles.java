@@ -17,12 +17,15 @@ public final class Libelles {
         boolean nous = Chantier.DEVIS_NOUS.equals(sorte);
         if (Chantier.DEVIS_SIGNE.equals(statut)) return nous ? "Signé" : "Accepté";
         if (Chantier.DEVIS_REFUSE.equals(statut)) return "Refusé";
+        if (Chantier.DEVIS_REMPLACE.equals(statut)) return "Remplacé";
+        if (Chantier.DEVIS_BROUILLON.equals(statut)) return "Brouillon";
         return nous ? "Envoyé" : "Reçu";
     }
 
     public static TextView chipDevis(Context c, String sorte, String statut) {
         int[] col = Chantier.DEVIS_SIGNE.equals(statut) ? new int[]{UiKit.VERT_FOND, UiKit.VERT}
-                : Chantier.DEVIS_REFUSE.equals(statut) ? new int[]{UiKit.GRIS_FOND, UiKit.GRIS}
+                : Chantier.DEVIS_REFUSE.equals(statut) || Chantier.DEVIS_REMPLACE.equals(statut) || Chantier.DEVIS_BROUILLON.equals(statut)
+                ? new int[]{UiKit.GRIS_FOND, UiKit.GRIS}
                 : new int[]{UiKit.BLEU_FOND, UiKit.BLEU};
         return UiKit.chip(c, devis(sorte, statut), col[0], col[1]);
     }

@@ -8,6 +8,8 @@ public final class Categories {
     public static final String CARBURANT = "carburant";
     public static final String REPAS = "repas";
     public static final String DIVERS = "divers";
+    /** Facture d'un sous-traitant. */
+    public static final String SOUS_TRAITANCE = "sous_traitance";
 
     /** {clé, libellé}, dans l'ordre d'affichage. */
     public static final String[][] TOUTES = {
@@ -15,6 +17,7 @@ public final class Categories {
             {LOCATION, "Outillage et location"},
             {CARBURANT, "Carburant et déplacements"},
             {REPAS, "Repas"},
+            {SOUS_TRAITANCE, "Sous-traitance"},
             {DIVERS, "Divers"},
     };
 

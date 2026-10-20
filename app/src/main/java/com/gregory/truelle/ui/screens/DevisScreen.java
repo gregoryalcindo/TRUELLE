@@ -5,27 +5,40 @@ import android.text.InputType;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.TextView;
 
 import com.gregory.truelle.MainActivity;
 import com.gregory.truelle.data.Chantier;
 import com.gregory.truelle.data.Event;
+import com.gregory.truelle.data.Finance;
+import com.gregory.truelle.data.Ligne;
 import com.gregory.truelle.data.Money;
+import com.gregory.truelle.data.Postes;
+import com.gregory.truelle.data.Tva;
 import com.gregory.truelle.ui.PieceJointe;
 import com.gregory.truelle.ui.Screen;
 import com.gregory.truelle.ui.UiKit;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
-/** Un devis : le nôtre (envoyé, signé, refusé) ou celui d'un sous-traitant (reçu, accepté, refusé). */
+/**
+ * Un devis à lignes (quantité × prix, TVA par ligne, coût prévu), le nôtre ou celui d'un sous-traitant.
+ * Brouillon → Envoyé → Signé (prix verrouillés). Pour changer un prix après signature : nouvelle version.
+ */
 public final class DevisScreen extends Screen {
 
     private final String chantierId;
     private final String devisId;
 
-    private String sorte, libelle, prestataire, montant, statut;
+    private String sorte, libelle, prestataire, statut, remise;
+    private boolean autoliquidation;
+    /** Lignes en cours de modification (copie de travail). */
+    List<Ligne> lignes;
     private File nouveauFichier;
     private String nouvelleExtension;
 
@@ -45,40 +58,52 @@ public final class DevisScreen extends Screen {
         Chantier c = store().charger(chantierId);
         Chantier.Element existant = (c != null && devisId != null) ? c.element(devisId) : null;
         boolean edition = existant != null;
-        if (sorte == null) {
+        Finance fin = c == null ? null : a.finance(c);
+        if (sorte == null && c != null) {
             sorte = edition ? existant.get("sorte") : Chantier.DEVIS_NOUS;
             libelle = edition ? existant.get("libelle") : "";
             prestataire = edition ? existant.get("prestataire") : "";
-            montant = edition ? Money.toInput(existant.centimes("montant_centimes")) : "";
-            statut = edition ? existant.get("statut") : Chantier.DEVIS_ENVOYE;
+            statut = edition ? existant.get("statut") : Chantier.DEVIS_BROUILLON;
+            remise = edition && existant.centimes("remise_bp") > 0 ? Tva.libelle((int) existant.centimes("remise_bp")).replace(" %", "") : "";
+            autoliquidation = edition && Finance.autoliquidation(existant);
+            lignes = new ArrayList<>();
+            if (edition) for (Ligne l : fin.lignes(existant)) lignes.add(l.copie());
         }
         boolean nous = Chantier.DEVIS_NOUS.equals(sorte);
+        boolean verrouille = edition && nous && Finance.signe(existant);
+        boolean remplace = edition && Chantier.DEVIS_REMPLACE.equals(existant.get("statut"));
 
         Page p = new Page(a);
         p.entete.addView(UiKit.retour(a, "Annuler", v -> a.retour()));
-        p.entete.addView(UiKit.titre(a, edition ? "Modifier le devis" : "Nouveau devis", 30));
+        String titre = edition ? (nous ? "Devis" : "Devis sous-traitant") + (existant.get("version").isEmpty() ? "" : " v" + existant.get("version")) : "Nouveau devis";
+        p.entete.addView(UiKit.titre(a, titre, 30));
         if (c == null) return p.racine;
 
         EditText fLibelle = UiKit.champTexte(a, libelle);
-        fLibelle.setHint(nous ? "Ex. : Devis initial" : "Ex. : Plomberie");
+        fLibelle.setHint(nous ? "Ex. : Rénovation salle de bain" : "Ex. : Plomberie");
         EditText fPrestataire = UiKit.champ(a, prestataire, InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
         fPrestataire.setHint("Nom du sous-traitant");
-        EditText fMontant = UiKit.champMontant(a, montant);
+        EditText fRemise = UiKit.champ(a, remise, InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        fRemise.setKeyListener(android.text.method.DigitsKeyListener.getInstance("0123456789,."));
+        fRemise.setHint("0");
         Runnable garder = () -> {
             libelle = fLibelle.getText().toString().trim();
             prestataire = fPrestataire.getText().toString().trim();
-            montant = fMontant.getText().toString().trim();
+            remise = fRemise.getText().toString().trim();
         };
 
         if (!edition) {
             p.contenu.addView(UiKit.choix(a, new String[][]{{Chantier.DEVIS_NOUS, "Notre devis"}, {Chantier.DEVIS_SOUS_TRAITANT, "Sous-traitant"}}, sorte, choisi -> {
                 garder.run();
                 sorte = choisi;
-                statut = Chantier.DEVIS_NOUS.equals(choisi) ? Chantier.DEVIS_ENVOYE : Chantier.DEVIS_RECU;
+                statut = Chantier.DEVIS_NOUS.equals(choisi) ? Chantier.DEVIS_BROUILLON : Chantier.DEVIS_RECU;
                 a.remplacer(this);
             }), UiKit.pleineLargeur());
-        } else {
-            p.contenu.addView(UiKit.text(a, nous ? "Notre devis" : "Devis de sous-traitant", 17, UiKit.ENCRE_2, true));
+        }
+        if (verrouille) {
+            p.contenu.addView(bandeau("Signé : les prix sont verrouillés. Pour les changer, créez une nouvelle version."), UiKit.pleineLargeur());
+        } else if (remplace) {
+            p.contenu.addView(bandeau("Remplacé par une version plus récente : ce devis ne compte plus."), UiKit.pleineLargeur());
         }
 
         // Le document : photo du devis signé, ou PDF reçu par mail.
@@ -87,42 +112,115 @@ public final class DevisScreen extends Screen {
             garder.run();
             nouveauFichier = fichier;
             nouvelleExtension = ext;
-            if (montant.isEmpty() && lu != null && lu.montantTrouve()) montant = Money.toInput(lu.montantCentimes);
+            if (lignes.isEmpty() && lu != null && lu.montantTrouve()) {
+                Ligne l = new Ligne();
+                l.designation = nous ? "Travaux" : "Sous-traitance";
+                l.unite = "forfait";
+                l.tvaBp = autoliquidation ? 0 : fin.tvaDefaut();
+                l.puHtCentimes = Tva.ht(lu.montantCentimes, l.tvaBp);
+                l.poste = nous ? Postes.MATERIAUX : Postes.SOUS_TRAITANCE;
+                lignes.add(l);
+            }
             if (!nous && prestataire.isEmpty() && lu != null && lu.fournisseur != null) prestataire = lu.fournisseur;
             a.remplacer(this);
         }), UiKit.pleineLargeur());
 
         p.contenu.addView(UiKit.libelle(a, "Intitulé", fLibelle), UiKit.pleineLargeur());
-        if (!nous) p.contenu.addView(UiKit.libelle(a, "Sous-traitant", fPrestataire), UiKit.pleineLargeur());
-        p.contenu.addView(UiKit.libelle(a, "Montant TTC", UiKit.euro(a, fMontant)), UiKit.pleineLargeur());
+        if (!nous) {
+            p.contenu.addView(UiKit.libelle(a, "Sous-traitant", fPrestataire), UiKit.pleineLargeur());
+            LinearLayout bloc = UiKit.colonne(a, 8);
+            bloc.addView(UiKit.text(a, "TVA du sous-traitant", 16, UiKit.ENCRE_2, false));
+            bloc.addView(UiKit.choix(a, new String[][]{{"non", "Avec TVA"}, {"oui", "Autoliquidation"}}, autoliquidation ? "oui" : "non", choisi -> {
+                garder.run();
+                autoliquidation = "oui".equals(choisi);
+                a.remplacer(this);
+            }), UiKit.pleineLargeur());
+            bloc.addView(UiKit.text(a, "Autoliquidation : le sous-traitant facture sans TVA, c'est l'entreprise principale qui la déclare (CGI art. 283-2 nonies).", 15, UiKit.ENCRE_2, false));
+            p.contenu.addView(bloc, UiKit.pleineLargeur());
+        }
 
-        LinearLayout blocStatut = UiKit.colonne(a, 8);
-        blocStatut.addView(UiKit.text(a, "Statut", 16, UiKit.ENCRE_2, false));
-        String[][] options = nous
-                ? new String[][]{{Chantier.DEVIS_ENVOYE, "Envoyé"}, {Chantier.DEVIS_SIGNE, "Signé"}, {Chantier.DEVIS_REFUSE, "Refusé"}}
-                : new String[][]{{Chantier.DEVIS_RECU, "Reçu"}, {Chantier.DEVIS_SIGNE, "Accepté"}, {Chantier.DEVIS_REFUSE, "Refusé"}};
-        blocStatut.addView(UiKit.choix(a, options, statut, choisi -> {
-            garder.run();
-            statut = choisi;
-            a.remplacer(this);
-        }), UiKit.pleineLargeur());
-        blocStatut.addView(UiKit.text(a, nous
-                ? "Un devis signé compte dans le montant du chantier."
-                : "Un devis accepté compte dans les coûts du chantier.", 15, UiKit.ENCRE_2, false));
-        p.contenu.addView(blocStatut, UiKit.pleineLargeur());
+        // Lignes
+        boolean sansTvaDevis = autoliquidation || (fin.r.franchise() || c.entreProches()) && nous;
+        p.contenu.addView(UiKit.section(a, "Lignes du devis"));
+        if (lignes.isEmpty()) p.contenu.addView(UiKit.text(a, "Aucune ligne : ajoutez les ouvrages (quantité × prix).", 16, UiKit.ENCRE_2, false));
+        for (int i = 0; i < lignes.size(); i++) {
+            Ligne l = lignes.get(i);
+            int index = i;
+            boolean sansTva = sansTvaDevis;
+            long ttcLigne = sansTva ? l.totalHt() : l.totalHt() + l.totalTva();
+            String sous = Ligne.formatQuantite(l.quantiteMilli) + " " + l.unite + " × " + Money.format(sansTva ? l.puHtCentimes : Tva.ttc(l.puHtCentimes, l.tvaBp))
+                    + (sansTva ? "" : " · TVA " + Tva.libelle(l.tvaBp))
+                    + (l.coutPrevuCentimes > 0 ? " · coût prévu " + Money.format(l.coutPrevuCentimes) : "");
+            p.contenu.addView(UiKit.ligneListe(a, l.designation.isEmpty() ? "Ligne " + (i + 1) : l.designation, sous, Money.format(ttcLigne), null,
+                    verrouille || remplace ? null : v -> {
+                        garder.run();
+                        a.ouvrir(new LigneScreen(a, this, chantierId, index, !sansTvaDevis, nous));
+                    }), UiKit.pleineLargeur());
+        }
+        if (!verrouille && !remplace) {
+            p.contenu.addView(UiKit.boutonContour(a, "+ Ajouter une ligne", v -> {
+                garder.run();
+                a.ouvrir(new LigneScreen(a, this, chantierId, -1, !sansTvaDevis, nous));
+            }), UiKit.pleineLargeur());
+            if (nous) p.contenu.addView(UiKit.libelle(a, "Remise sur le devis (%)", fRemise), UiKit.pleineLargeur());
+        }
+
+        // Totaux
+        int remiseBp = Math.max(0, Tva.parse(remise.isEmpty() ? "0" : remise));
+        Finance.Totaux t = Finance.totaux(lignes, nous ? remiseBp : 0, sansTvaDevis);
+        LinearLayout tot = UiKit.carte(a, 8);
+        tot.setBackground(UiKit.rounded(UiKit.SURFACE, dp(16), 0, 0));
+        tot.addView(UiKit.ligneChiffre(a, "Total TTC", Money.format(t.ttc), true), UiKit.pleineLargeur());
+        for (Map.Entry<Integer, Long> e : t.tvaParTaux.entrySet()) {
+            if (e.getValue() > 0) tot.addView(UiKit.ligneChiffre(a, "dont TVA " + Tva.libelle(e.getKey()), Money.format(e.getValue()), false), UiKit.pleineLargeur());
+        }
+        if (t.tva > 0) tot.addView(UiKit.ligneChiffre(a, "Hors TVA", Money.format(t.ht), false), UiKit.pleineLargeur());
+        if (t.remise > 0) tot.addView(UiKit.ligneChiffre(a, "Remise accordée", "− " + Money.format(t.remise), false), UiKit.pleineLargeur());
+        if (nous && t.coutPrevu > 0) {
+            long fg = fin.fraisGeneraux(t.coutPrevu);
+            long benef = t.ht - t.coutPrevu - fg;
+            tot.addView(UiKit.ligneChiffre(a, "Coût prévu", Money.format(t.coutPrevu), false), UiKit.pleineLargeur());
+            if (fg > 0) tot.addView(UiKit.ligneChiffre(a, "Frais généraux (" + Tva.libelle(fin.r.fraisGenerauxBp) + ")", Money.format(fg), false), UiKit.pleineLargeur());
+            TextView b = UiKit.text(a, "Bénéfice prévu : " + Money.format(benef) + (t.ht > 0 ? " (" + Finance.pourcent(Tva.arrondi(benef * 10000L, t.ht)) + ")" : ""), 17, benef < 0 ? UiKit.ROUGE : UiKit.VERT, true);
+            tot.addView(b);
+        }
+        p.contenu.addView(tot, UiKit.pleineLargeur());
+
+        // Statut
+        if (!remplace) {
+            LinearLayout blocStatut = UiKit.colonne(a, 8);
+            blocStatut.addView(UiKit.text(a, "Statut", 16, UiKit.ENCRE_2, false));
+            String[][] options = nous
+                    ? new String[][]{{Chantier.DEVIS_BROUILLON, "Brouillon"}, {Chantier.DEVIS_ENVOYE, "Envoyé"}, {Chantier.DEVIS_SIGNE, "Signé"}, {Chantier.DEVIS_REFUSE, "Refusé"}}
+                    : new String[][]{{Chantier.DEVIS_RECU, "Reçu"}, {Chantier.DEVIS_SIGNE, "Accepté"}, {Chantier.DEVIS_REFUSE, "Refusé"}};
+            blocStatut.addView(UiKit.choix(a, options, statut, choisi -> {
+                garder.run();
+                statut = choisi;
+                a.remplacer(this);
+            }), UiKit.pleineLargeur());
+            blocStatut.addView(UiKit.text(a, nous
+                    ? "Un devis signé compte dans le montant du chantier, et ses coûts prévus deviennent le budget."
+                    : "Un devis accepté est un coût engagé du chantier.", 15, UiKit.ENCRE_2, false));
+            p.contenu.addView(blocStatut, UiKit.pleineLargeur());
+        }
 
         p.ajouterAuPied(UiKit.boutonAction(a, "Enregistrer", v -> {
             garder.run();
-            long centimes = Money.parseCentimes(montant);
-            if (centimes <= 0) {
-                fMontant.setError("Indiquez le montant du devis");
+            if (lignes.isEmpty()) {
+                toast("Ajoutez au moins une ligne");
                 return;
             }
+            int rb = remise.isEmpty() ? 0 : Tva.parse(remise);
+            if (rb < 0) {
+                fRemise.setError("Entre 0 et 100");
+                return;
+            }
+            Finance.Totaux tt = Finance.totaux(lignes, nous ? rb : 0, sansTvaDevis);
             String fichier = null;
             if (nouveauFichier != null) {
                 try {
                     fichier = store().importerFichier(chantierId, "Devis", nouveauFichier,
-                            com.gregory.truelle.data.NomsFichiers.devis(nous, libelle, prestataire, centimes), nouvelleExtension);
+                            com.gregory.truelle.data.NomsFichiers.devis(nous, libelle, prestataire, tt.ttc), nouvelleExtension);
                 } catch (Exception e) {
                     toast("Le document n'a pas pu être rangé : " + e.getMessage());
                     return;
@@ -130,19 +228,27 @@ public final class DevisScreen extends Screen {
             }
             Map<String, String> data = new LinkedHashMap<>();
             boolean ok;
+            String lignesTxt = Ligne.encoder(lignes);
             if (!edition) {
                 data.put("sorte", sorte);
                 data.put("libelle", libelle);
                 if (!nous) data.put("prestataire", prestataire);
-                data.put("montant_centimes", Long.toString(centimes));
+                data.put("lignes", lignesTxt);
+                data.put("remise_bp", Integer.toString(nous ? rb : 0));
+                data.put("autoliquidation", autoliquidation ? "oui" : "non");
+                data.put("montant_centimes", Long.toString(tt.ttc));
                 data.put("statut", statut);
+                data.put("version", "1");
                 if (fichier != null) data.put("fichier", fichier);
                 ok = enregistrer(chantierId, Event.DEVIS, data);
             } else {
                 data.put("cible", existant.id);
                 if (!libelle.equals(existant.get("libelle"))) data.put("libelle", libelle);
                 if (!nous && !prestataire.equals(existant.get("prestataire"))) data.put("prestataire", prestataire);
-                if (centimes != existant.centimes("montant_centimes")) data.put("montant_centimes", Long.toString(centimes));
+                if (!verrouille && !lignesTxt.equals(existant.get("lignes"))) data.put("lignes", lignesTxt);
+                if (!verrouille && rb != existant.centimes("remise_bp")) data.put("remise_bp", Integer.toString(rb));
+                if (autoliquidation != Finance.autoliquidation(existant)) data.put("autoliquidation", autoliquidation ? "oui" : "non");
+                if (!verrouille && tt.ttc != existant.centimes("montant_centimes")) data.put("montant_centimes", Long.toString(tt.ttc));
                 if (!statut.equals(existant.get("statut"))) data.put("statut", statut);
                 if (fichier != null) data.put("fichier", fichier);
                 ok = data.size() == 1 || enregistrer(chantierId, Event.CORRECTION, data);
@@ -157,6 +263,9 @@ public final class DevisScreen extends Screen {
             }
         }));
 
+        if (verrouille) {
+            p.ajouterAuPied(UiKit.boutonContour(a, "Nouvelle version (modifier les prix)", v -> nouvelleVersion(existant)));
+        }
         if (edition) {
             p.ajouterAuPied(UiKit.boutonContour(a, "Supprimer ce devis", v -> new AlertDialog.Builder(a)
                     .setTitle("Supprimer ce devis ?")
@@ -170,5 +279,47 @@ public final class DevisScreen extends Screen {
                     .show()));
         }
         return p.racine;
+    }
+
+    /** Copie modifiable du devis signé ; l'ancien passe en « Remplacé ». */
+    private void nouvelleVersion(Chantier.Element ancien) {
+        new AlertDialog.Builder(a)
+                .setTitle("Créer une nouvelle version ?")
+                .setMessage("Une copie en brouillon sera créée avec les mêmes lignes. L'ancien devis restera consultable, marqué « Remplacé ». Pensez à faire signer la nouvelle version.")
+                .setNegativeButton("Annuler", null)
+                .setPositiveButton("Créer", (d, w) -> {
+                    int version = (int) Math.max(1, ancien.centimes("version")) + 1;
+                    Map<String, String> data = new LinkedHashMap<>();
+                    data.put("sorte", ancien.get("sorte"));
+                    data.put("libelle", ancien.get("libelle"));
+                    data.put("lignes", Ligne.encoder(lignes));
+                    data.put("remise_bp", ancien.get("remise_bp").isEmpty() ? "0" : ancien.get("remise_bp"));
+                    data.put("autoliquidation", ancien.get("autoliquidation").isEmpty() ? "non" : ancien.get("autoliquidation"));
+                    data.put("montant_centimes", ancien.get("montant_centimes"));
+                    data.put("statut", Chantier.DEVIS_BROUILLON);
+                    data.put("version", Integer.toString(version));
+                    data.put("remplace", ancien.id);
+                    Event e = Event.create(Event.DEVIS, chantierId, a.auteur(), data);
+                    try {
+                        store().ajouter(chantierId, e);
+                        Map<String, String> corr = new LinkedHashMap<>();
+                        corr.put("cible", ancien.id);
+                        corr.put("statut", Chantier.DEVIS_REMPLACE);
+                        corr.put("remplace_par", e.id);
+                        store().ajouter(chantierId, Event.create(Event.CORRECTION, chantierId, a.auteur(), corr));
+                        a.apresEnregistrement();
+                        toast("Version " + version + " créée");
+                        a.remplacer(new DevisScreen(a, chantierId, e.id));
+                    } catch (Exception ex) {
+                        toast("Création impossible : " + ex.getMessage());
+                    }
+                }).show();
+    }
+
+    private View bandeau(String texte) {
+        TextView t = UiKit.text(a, texte, 16, UiKit.BLEU, true);
+        t.setPadding(dp(14), dp(12), dp(14), dp(12));
+        t.setBackground(UiKit.rounded(UiKit.BLEU_FOND, dp(12), 0, 0));
+        return t;
     }
 }

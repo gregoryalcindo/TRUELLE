@@ -17,6 +17,10 @@ public final class Chantier {
     public static final String EN_COURS = "en_cours";
     public static final String TERMINE = "termine";
 
+    public static final String TYPE_PRO = "pro";
+    /** Travaux entre proches : pas de TVA, remboursement des achats et frais, main d'œuvre payée. */
+    public static final String TYPE_PROCHES = "proches";
+
     public static final String MODE_REEL = "reel";
     public static final String MODE_FORFAIT = "forfait";
 
@@ -29,6 +33,15 @@ public final class Chantier {
     public int majorationPct = 0;
     /** Budget matériel prévu (centimes), 0 si non renseigné. */
     public long budgetMaterielCentimes = 0;
+    /** TVA par défaut du chantier (points de base), -1 = celle de l'entreprise. */
+    public int tvaDefautBp = -1;
+    /** Retenue de garantie (points de base, 0 à 500 = 5 %). */
+    public int retenueBp = 0;
+    public String type = TYPE_PRO;
+    /** Entre proches : taux horaire convenu pour la main d'œuvre (centimes). */
+    public long tauxConvenuCentimes = 0;
+    /** Avancement des travaux déclaré (points de base, 0 à 10000), -1 = non renseigné. */
+    public int avancementBp = -1;
     public String statut = A_DEMARRER;
     public long creeLe;
     public long modifieLe;
@@ -36,6 +49,7 @@ public final class Chantier {
     private final Map<String, Depense> depenses = new LinkedHashMap<>();
     private final Map<String, Note> notes = new LinkedHashMap<>();
     private final Map<String, Element> elements = new LinkedHashMap<>();
+    private final Map<String, Heure> heures = new LinkedHashMap<>();
 
     // Statuts des devis, travaux en plus et lignes de facturation.
     public static final String DEVIS_NOUS = "nous";
@@ -44,6 +58,9 @@ public final class Chantier {
     public static final String DEVIS_RECU = "recu";          // sous-traitant : reçu
     public static final String DEVIS_SIGNE = "signe";        // accepté (par le client, ou par nous pour un sous-traitant)
     public static final String DEVIS_REFUSE = "refuse";
+    public static final String DEVIS_BROUILLON = "brouillon";
+    /** Remplacé par une nouvelle version (prix modifiés après signature). */
+    public static final String DEVIS_REMPLACE = "remplace";
     public static final String TRAVAUX_PROPOSE = "propose";
     public static final String TRAVAUX_ACCEPTE = "accepte";
     public static final String TRAVAUX_FAIT = "fait";
@@ -79,6 +96,11 @@ public final class Chantier {
             return parseLong(champs.get(cle), 0);
         }
 
+        /** Élément non enregistré (aperçu, calculs). */
+        public static Element temporaire(Map<String, String> data) {
+            return new Element("tmp", "", "", 0, data);
+        }
+
         void appliquer(Map<String, String> corrections) {
             for (Map.Entry<String, String> e : corrections.entrySet()) {
                 if (!"cible".equals(e.getKey())) champs.put(e.getKey(), e.getValue());
@@ -103,10 +125,34 @@ public final class Chantier {
         public String categorie = Categories.MATERIEL;
         /** TVA lue sur la facture, -1 si inconnue. */
         public long tvaCentimes = -1;
+        /** Taux de TVA choisi (points de base), -1 = non précisé (ancienne dépense). */
+        public int tvaBp = -1;
+        /** Faux tant qu'elle n'a pas été vérifiée (saisie terrain, lecture automatique). */
+        public boolean valide = true;
         public final String auteur;
         public final long creeLe;
 
         Depense(String id, String auteur, long creeLe) {
+            this.id = id;
+            this.auteur = auteur;
+            this.creeLe = creeLe;
+        }
+    }
+
+    /** Heures de main d'œuvre. */
+    public static final class Heure {
+        public final String id;
+        public String date = "";
+        public String personne = "";
+        /** Heures en centièmes (7 h 30 = 750). */
+        public long heuresCentiemes;
+        /** Coût horaire chargé de cette saisie, -1 = celui des réglages. */
+        public long tauxCentimes = -1;
+        public String note = "";
+        public final String auteur;
+        public final long creeLe;
+
+        Heure(String id, String auteur, long creeLe) {
             this.id = id;
             this.auteur = auteur;
             this.creeLe = creeLe;
@@ -178,7 +224,15 @@ public final class Chantier {
                 d.fichier = e.get("fichier", "");
                 d.categorie = Categories.normaliser(e.get("categorie"));
                 d.tvaCentimes = parseLong(e.get("tva_centimes"), -1);
+                d.tvaBp = (int) parseLong(e.get("tva_bp"), -1);
+                d.valide = !"non".equals(e.get("valide"));
                 depenses.put(e.id, d);
+                break;
+            }
+            case Event.HEURES: {
+                Heure h = new Heure(e.id, e.auteur, e.at);
+                appliquerHeure(h, e);
+                heures.put(e.id, h);
                 break;
             }
             case Event.NOTE:
@@ -198,6 +252,7 @@ public final class Chantier {
                     depenses.remove(cible);
                     notes.remove(cible);
                     elements.remove(cible);
+                    heures.remove(cible);
                 }
                 break;
             }
@@ -215,6 +270,11 @@ public final class Chantier {
         if (e.get("mode") != null) mode = MODE_REEL.equals(e.get("mode")) ? MODE_REEL : MODE_FORFAIT;
         if (e.get("majoration_pct") != null) majorationPct = (int) parseLong(e.get("majoration_pct"), 0);
         if (e.get("budget_materiel_centimes") != null) budgetMaterielCentimes = parseLong(e.get("budget_materiel_centimes"), 0);
+        if (e.get("tva_defaut_bp") != null) tvaDefautBp = (int) parseLong(e.get("tva_defaut_bp"), -1);
+        if (e.get("type") != null) type = TYPE_PROCHES.equals(e.get("type")) ? TYPE_PROCHES : TYPE_PRO;
+        if (e.get("taux_convenu_centimes") != null) tauxConvenuCentimes = parseLong(e.get("taux_convenu_centimes"), 0);
+        if (e.get("avancement_bp") != null) avancementBp = (int) Math.max(0, Math.min(10000, parseLong(e.get("avancement_bp"), 0)));
+        if (e.get("retenue_bp") != null) retenueBp = (int) Math.max(0, Math.min(500, parseLong(e.get("retenue_bp"), 0)));
     }
 
     private void applyCorrection(Event e) {
@@ -229,6 +289,13 @@ public final class Chantier {
             if (e.get("fichier") != null) d.fichier = e.get("fichier");
             if (e.get("categorie") != null) d.categorie = Categories.normaliser(e.get("categorie"));
             if (e.get("tva_centimes") != null) d.tvaCentimes = parseLong(e.get("tva_centimes"), d.tvaCentimes);
+            if (e.get("tva_bp") != null) d.tvaBp = (int) parseLong(e.get("tva_bp"), d.tvaBp);
+            if (e.get("valide") != null) d.valide = !"non".equals(e.get("valide"));
+            return;
+        }
+        Heure h = heures.get(cible);
+        if (h != null) {
+            appliquerHeure(h, e);
             return;
         }
         Note n = notes.get(cible);
@@ -237,7 +304,15 @@ public final class Chantier {
         if (el != null) el.appliquer(e.data());
     }
 
-    private static long parseLong(String s, long fallback) {
+    private static void appliquerHeure(Heure h, Event e) {
+        if (e.get("date") != null) h.date = e.get("date");
+        if (e.get("personne") != null) h.personne = e.get("personne");
+        if (e.get("heures_centiemes") != null) h.heuresCentiemes = parseLong(e.get("heures_centiemes"), h.heuresCentiemes);
+        if (e.get("taux_centimes") != null) h.tauxCentimes = parseLong(e.get("taux_centimes"), h.tauxCentimes);
+        if (e.get("note") != null) h.note = e.get("note");
+    }
+
+    static long parseLong(String s, long fallback) {
         if (s == null) return fallback;
         try {
             return Long.parseLong(s.trim());
@@ -248,6 +323,16 @@ public final class Chantier {
 
     public List<Depense> depenses() {
         return new ArrayList<>(depenses.values());
+    }
+
+    public List<Heure> heures() {
+        List<Heure> l = new ArrayList<>(heures.values());
+        l.sort((a, b) -> Long.compare(b.creeLe, a.creeLe));
+        return l;
+    }
+
+    public Heure heure(String id) {
+        return heures.get(id);
     }
 
     public Depense depense(String id) {
@@ -265,10 +350,14 @@ public final class Chantier {
     }
 
     /** Vrai si la dépense doit être refacturée au client, en tenant compte du mode du chantier. */
+    public boolean entreProches() {
+        return TYPE_PROCHES.equals(type);
+    }
+
     public boolean estARefacturer(Depense d) {
         if ("oui".equals(d.refacturer)) return true;
         if ("non".equals(d.refacturer)) return false;
-        return MODE_REEL.equals(mode);
+        return entreProches() || MODE_REEL.equals(mode);
     }
 
     /** Dépenses et notes, des plus récentes aux plus anciennes. */
@@ -295,77 +384,10 @@ public final class Chantier {
 
     // ------------------------------------------------------------ rentabilité
 
-    /** Montant d'une dépense tel que refacturé au client (avec la majoration du chantier). */
-    public long montantRefacture(Depense d) {
-        return d.montantCentimes + Math.round(d.montantCentimes * majorationPct / 100.0);
-    }
-
     /** Total des dépenses d'une catégorie. */
     public long totalCategorie(String categorie) {
         long t = 0;
         for (Depense d : depenses.values()) if (d.categorie.equals(categorie)) t += d.montantCentimes;
-        return t;
-    }
-
-    public long totalDevisSignes() {
-        long t = 0;
-        for (Element el : elements(Event.DEVIS)) {
-            if (DEVIS_NOUS.equals(el.get("sorte")) && DEVIS_SIGNE.equals(el.get("statut"))) t += el.centimes("montant_centimes");
-        }
-        return t;
-    }
-
-    public long totalTravauxAcceptes() {
-        long t = 0;
-        for (Element el : elements(Event.TRAVAUX)) {
-            String s = el.get("statut");
-            if (TRAVAUX_ACCEPTE.equals(s) || TRAVAUX_FAIT.equals(s)) t += el.centimes("montant_centimes");
-        }
-        return t;
-    }
-
-    public long totalMaterielRefacture() {
-        long t = 0;
-        for (Depense d : depenses.values()) if (estARefacturer(d)) t += montantRefacture(d);
-        return t;
-    }
-
-    /** Ce que le client paiera : devis signés + travaux en plus acceptés + matériel refacturé. */
-    public long montantVendu() {
-        return totalDevisSignes() + totalTravauxAcceptes() + totalMaterielRefacture();
-    }
-
-    public long totalSousTraitance() {
-        long t = 0;
-        for (Element el : elements(Event.DEVIS)) {
-            if (DEVIS_SOUS_TRAITANT.equals(el.get("sorte")) && DEVIS_SIGNE.equals(el.get("statut"))) t += el.centimes("montant_centimes");
-        }
-        return t;
-    }
-
-    /** Ce que le chantier coûte : dépenses + sous-traitance acceptée. */
-    public long coutTotal() {
-        return totalDepensesCentimes() + totalSousTraitance();
-    }
-
-    public long marge() {
-        return montantVendu() - coutTotal();
-    }
-
-    public long totalFacture() {
-        long t = 0;
-        for (Element el : elements(Event.FACTURATION)) {
-            String s = el.get("statut");
-            if (FACT_FACTURE.equals(s) || FACT_ENCAISSE.equals(s)) t += el.centimes("montant_centimes");
-        }
-        return t;
-    }
-
-    public long totalEncaisse() {
-        long t = 0;
-        for (Element el : elements(Event.FACTURATION)) {
-            if (FACT_ENCAISSE.equals(el.get("statut"))) t += el.centimes("montant_centimes");
-        }
         return t;
     }
 

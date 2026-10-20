@@ -25,6 +25,8 @@ public final class Event {
     public static final String DEVIS = "devis";
     public static final String TRAVAUX = "travaux";
     public static final String FACTURATION = "facturation";
+    /** Heures de main d'œuvre passées sur le chantier. */
+    public static final String HEURES = "heures";
     /** Infos de l'entreprise (nom, adresse, SIRET…), dans le journal de _App/. */
     public static final String ENTREPRISE = "entreprise";
 

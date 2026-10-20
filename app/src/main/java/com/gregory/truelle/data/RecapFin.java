@@ -51,51 +51,89 @@ public final class RecapFin {
     public final List<Annexe> annexes = new ArrayList<>();
     /** Travaux en plus signés : {description, date, chemin de la signature}. */
     public final List<String[]> signatures = new ArrayList<>();
+    /** Montants HT des sections ; TVA par taux ; TTC. */
+    public long totalHt;
+    public final java.util.Map<Integer, Long> tvaParTaux = new java.util.TreeMap<>();
+    public long totalTva;
     public long totalTtc;
+    /** Déjà réglé par le client (encaissé) et retenues de garantie conservées. */
     public long dejaRegle;
+    public long retenues;
+    /** Mention légale de TVA à imprimer (franchise), vide sinon. */
+    public String mentionTva = "";
 
     public long resteAPayer() {
-        return totalTtc - dejaRegle;
+        return totalTtc - dejaRegle - retenues;
     }
 
-    public static RecapFin construire(Chantier c, boolean joindreFactures) {
+    public static RecapFin construire(Finance f, boolean joindreFactures) {
+        Chantier c = f.c;
         RecapFin r = new RecapFin();
 
-        Section devis = new Section("Devis signés");
+        boolean sansTva = f.r.franchise() || f.proches();
+        String suffixe = sansTva ? "" : " (HT)";
+        Section devis = new Section("Devis signés" + suffixe);
         for (Chantier.Element el : c.elements(Event.DEVIS)) {
-            if (Chantier.DEVIS_NOUS.equals(el.get("sorte")) && Chantier.DEVIS_SIGNE.equals(el.get("statut"))) {
-                devis.ajouter(el.get("libelle").isEmpty() ? "Devis" : el.get("libelle"), "", el.centimes("montant_centimes"));
+            if (!Finance.estNotreDevis(el) || !Finance.signe(el)) continue;
+            Finance.Totaux t = f.totaux(el);
+            StringBuilder detail = new StringBuilder();
+            for (java.util.Map.Entry<Integer, Long> e : t.tvaParTaux.entrySet()) {
+                if (detail.length() > 0) detail.append(" · ");
+                detail.append("TVA ").append(Tva.libelle(e.getKey())).append(" : ").append(Money.format(e.getValue()));
             }
+            if (t.remise > 0) detail.append(detail.length() > 0 ? " · " : "").append("remise ").append(Money.format(t.remise));
+            devis.ajouter(el.get("libelle").isEmpty() ? "Devis" : el.get("libelle"), detail.toString(), t.ht);
+            for (java.util.Map.Entry<Integer, Long> e : t.tvaParTaux.entrySet()) r.tvaParTaux.merge(e.getKey(), e.getValue(), Long::sum);
         }
         if (!devis.lignes.isEmpty()) r.sections.add(devis);
 
-        Section travaux = new Section("Travaux supplémentaires acceptés");
+        Section travaux = new Section((f.proches() ? "Travaux convenus" : "Travaux supplémentaires acceptés") + suffixe);
         for (Chantier.Element el : c.elements(Event.TRAVAUX)) {
-            String s = el.get("statut");
-            if (!Chantier.TRAVAUX_ACCEPTE.equals(s) && !Chantier.TRAVAUX_FAIT.equals(s)) continue;
-            String detail = el.get("signe_le").isEmpty() ? "" : "Accord signé le " + el.get("signe_le");
-            travaux.ajouter(el.get("description"), detail, el.centimes("montant_centimes"));
+            if (!Finance.accepte(el)) continue;
+            int bp = sansTva ? 0 : f.tvaTravaux(el);
+            long ht = f.htTravaux(el);
+            String detail = (sansTva ? "" : "TVA " + Tva.libelle(bp)) + (el.get("signe_le").isEmpty() ? "" : (sansTva ? "" : " · ") + "accord signé le " + el.get("signe_le"));
+            travaux.ajouter(el.get("description"), detail, ht);
+            r.tvaParTaux.merge(bp, Tva.tva(ht, bp), Long::sum);
             if (!el.get("signature").isEmpty()) r.signatures.add(new String[]{el.get("description"), el.get("signe_le"), el.get("signature")});
         }
         if (!travaux.lignes.isEmpty()) r.sections.add(travaux);
 
-        Section materiel = new Section(c.majorationPct > 0 ? "Matériel refacturé (prix d'achat + " + c.majorationPct + " %)" : "Matériel refacturé au prix d'achat");
+        int bpMat = f.tvaDefaut();
+        Section materiel = new Section(f.proches() ? "Achats et frais avancés (tickets en annexe)" : (c.majorationPct > 0 ? "Matériel refacturé (prix d'achat + " + c.majorationPct + " %)" : "Matériel refacturé au prix d'achat") + suffixe);
         int n = 0;
         for (Chantier.Depense d : c.depenses()) {
             if (!c.estARefacturer(d)) continue;
             String nom = d.fournisseur.isEmpty() ? "Achat" : d.fournisseur;
-            String detail = (d.date.isEmpty() ? "" : d.date) + (c.majorationPct > 0 ? (d.date.isEmpty() ? "" : " · ") + "achat " + Money.format(d.montantCentimes) : "");
+            String detail = (d.date.isEmpty() ? "" : d.date) + (c.majorationPct > 0 ? (d.date.isEmpty() ? "" : " · ") + "achat " + Money.format(f.coutDepense(d)) : "");
             if (joindreFactures && !d.fichier.isEmpty()) {
                 n++;
                 detail += (detail.isEmpty() ? "" : " · ") + "voir annexe " + n;
                 r.annexes.add(new Annexe("Annexe " + n + " — " + nom + (d.date.isEmpty() ? "" : " du " + d.date), d.fichier));
             }
-            materiel.ajouter(nom, detail, c.montantRefacture(d));
+            long ht = f.refactureHt(d);
+            materiel.ajouter(nom, detail, ht);
+            r.tvaParTaux.merge(bpMat, Tva.tva(ht, bpMat), Long::sum);
         }
         if (!materiel.lignes.isEmpty()) r.sections.add(materiel);
 
-        for (Section s : r.sections) r.totalTtc += s.total;
-        r.dejaRegle = c.totalEncaisse();
+        if (f.proches()) {
+            Section mo = new Section("Main d'œuvre");
+            for (Chantier.Heure h : c.heures()) {
+                String detail = (h.date.isEmpty() ? "" : h.date + " · ") + Heures.format(h.heuresCentiemes) + " × " + Money.format(f.tauxHeure(h))
+                        + (h.personne.isEmpty() ? "" : " · " + h.personne);
+                mo.ajouter(h.note.isEmpty() ? "Travail" : h.note, detail, f.coutHeure(h));
+            }
+            if (!mo.lignes.isEmpty()) r.sections.add(mo);
+        }
+
+        for (Section s : r.sections) r.totalHt += s.total;
+        r.tvaParTaux.entrySet().removeIf(e -> e.getValue() == 0 && e.getKey() != 0);
+        for (long v : r.tvaParTaux.values()) r.totalTva += v;
+        r.totalTtc = r.totalHt + r.totalTva;
+        r.dejaRegle = f.encaisse();
+        r.retenues = f.retenues();
+        if (f.r.franchise() && !f.proches()) r.mentionTva = "TVA non applicable, art. 293 B du CGI.";
         return r;
     }
 }

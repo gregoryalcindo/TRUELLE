@@ -249,6 +249,54 @@ public final class UiKit {
         return cadre;
     }
 
+    /**
+     * Choix du taux de TVA : 0 · 5,5 · 10 · 20 % et « Autre » (saisie libre de 0 à 100 %).
+     * Le taux actuel, s'il n'est pas courant, s'affiche sur le bouton « Autre ».
+     */
+    public static LinearLayout choixTva(Context c, int bp, java.util.function.IntConsumer onChoix) {
+        LinearLayout row = ligne(c, 6);
+        boolean courant = false;
+        for (int t : com.gregory.truelle.data.Tva.COURANTS) {
+            boolean sel = t == bp;
+            courant |= sel;
+            Button b = boutonChoix(c, com.gregory.truelle.data.Tva.libelle(t).replace(" %", "%"), sel, ENCRE, Color.WHITE, v -> onChoix.accept(t));
+            b.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+            row.addView(b, poids(1));
+        }
+        boolean autre = !courant && bp >= 0;
+        Button b = boutonChoix(c, autre ? com.gregory.truelle.data.Tva.libelle(bp).replace(" %", "%") : "Autre", autre, ENCRE, Color.WHITE, v -> {
+            EditText champ = champ(c, autre ? com.gregory.truelle.data.Tva.libelle(bp).replace(" %", "") : "",
+                    InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+            champ.setKeyListener(android.text.method.DigitsKeyListener.getInstance("0123456789,."));
+            champ.setHint("Ex. : 2,1");
+            FrameLayout cadre = new FrameLayout(c);
+            cadre.setPadding(dp(c, 20), dp(c, 8), dp(c, 20), 0);
+            cadre.addView(champ);
+            new android.app.AlertDialog.Builder(c)
+                    .setTitle("Taux de TVA (%)")
+                    .setView(cadre)
+                    .setNegativeButton("Annuler", null)
+                    .setPositiveButton("OK", (d, w) -> {
+                        int t = com.gregory.truelle.data.Tva.parse(champ.getText().toString());
+                        if (t >= 0) onChoix.accept(t);
+                        else android.widget.Toast.makeText(c, "Taux invalide (0 à 100 %)", android.widget.Toast.LENGTH_SHORT).show();
+                    })
+                    .show();
+        });
+        b.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+        row.addView(b, poids(1.2f));
+        return row;
+    }
+
+    /** Bloc « libellé + choix TVA + explication » prêt à poser dans un formulaire. */
+    public static LinearLayout blocTva(Context c, String titre, int bp, String aide, java.util.function.IntConsumer onChoix) {
+        LinearLayout bloc = colonne(c, 8);
+        bloc.addView(text(c, titre, 16, ENCRE_2, false));
+        bloc.addView(choixTva(c, bp, onChoix), pleineLargeur());
+        if (aide != null && !aide.isEmpty()) bloc.addView(text(c, aide, 15, ENCRE_2, false));
+        return bloc;
+    }
+
     /** Une rangée de boutons de choix exclusifs ({valeur, libellé}). La sélection est en noir. */
     public static LinearLayout choix(Context c, String[][] options, String selection, java.util.function.Consumer<String> onChoix) {
         LinearLayout row = ligne(c, 8);

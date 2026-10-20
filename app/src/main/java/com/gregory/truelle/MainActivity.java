@@ -146,6 +146,24 @@ public class MainActivity extends AppCompatActivity {
         return store;
     }
 
+    /** Réglages financiers de l'entreprise (TVA, taux horaire, frais généraux…). */
+    public com.gregory.truelle.data.Reglages reglages() {
+        return com.gregory.truelle.data.Reglages.lire(store.entreprise());
+    }
+
+    public com.gregory.truelle.data.Finance finance(com.gregory.truelle.data.Chantier c) {
+        return new com.gregory.truelle.data.Finance(c, reglages());
+    }
+
+    /** Sur ce téléphone, les dépenses saisies sont-elles validées d'office ? (non par défaut) */
+    public boolean valideDOffice() {
+        return prefs().getBoolean("valide_d_office", false);
+    }
+
+    public void setValideDOffice(boolean v) {
+        prefs().edit().putBoolean("valide_d_office", v).apply();
+    }
+
     public String auteur() {
         return prefs().getString(KEY_AUTEUR, "");
     }

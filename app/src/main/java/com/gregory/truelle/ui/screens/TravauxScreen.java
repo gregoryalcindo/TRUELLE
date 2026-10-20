@@ -27,7 +27,8 @@ public final class TravauxScreen extends Screen {
 
     private final String chantierId;
     private final String travauxId;
-    private String description, montant, statut;
+    private String description, montant, statut, coutPrevu, poste;
+    private int tvaBp = -1;
 
     public TravauxScreen(MainActivity a, String chantierId, String travauxId) {
         super(a);
@@ -45,15 +46,20 @@ public final class TravauxScreen extends Screen {
         Chantier c = store().charger(chantierId);
         Chantier.Element existant = (c != null && travauxId != null) ? c.element(travauxId) : null;
         boolean edition = existant != null;
+        com.gregory.truelle.data.Finance fin = c == null ? null : a.finance(c);
         if (description == null) {
             description = edition ? existant.get("description") : "";
-            montant = edition ? Money.toInput(existant.centimes("montant_centimes")) : "";
+            montant = edition ? Money.toInput(fin.ttcTravaux(existant)) : "";
             statut = edition ? existant.get("statut") : Chantier.TRAVAUX_PROPOSE;
+            tvaBp = edition ? fin.tvaTravaux(existant) : (fin == null ? 0 : fin.tvaDefaut());
+            coutPrevu = edition && existant.centimes("cout_prevu_centimes") > 0 ? Money.toInput(existant.centimes("cout_prevu_centimes")) : "";
+            poste = edition && !existant.get("poste").isEmpty() ? existant.get("poste") : com.gregory.truelle.data.Postes.MATERIAUX;
         }
 
         Page p = new Page(a);
         p.entete.addView(UiKit.retour(a, "Annuler", v -> a.retour()));
-        p.entete.addView(UiKit.titre(a, edition ? "Travaux en plus" : "Nouveaux travaux", 30));
+        boolean proches = c != null && c.entreProches();
+        p.entete.addView(UiKit.titre(a, proches ? (edition ? "Travaux convenus" : "Nouveaux travaux") : (edition ? "Travaux en plus" : "Nouveaux travaux"), 30));
         if (c == null) return p.racine;
 
         EditText fDesc = UiKit.champ(a, description, InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
@@ -61,13 +67,40 @@ public final class TravauxScreen extends Screen {
         fDesc.setGravity(Gravity.TOP | Gravity.START);
         fDesc.setHint("Ex. : faïence jusqu'au plafond");
         EditText fMontant = UiKit.champMontant(a, montant);
+        EditText fCout = UiKit.champMontant(a, coutPrevu);
+        fCout.setHint("Facultatif");
         Runnable garder = () -> {
             description = fDesc.getText().toString().trim();
             montant = fMontant.getText().toString().trim();
+            coutPrevu = fCout.getText().toString().trim();
         };
 
         p.contenu.addView(UiKit.libelle(a, "Description", fDesc), UiKit.pleineLargeur());
-        p.contenu.addView(UiKit.libelle(a, "Montant TTC", UiKit.euro(a, fMontant)), UiKit.pleineLargeur());
+        p.contenu.addView(UiKit.libelle(a, proches ? "Montant convenu" : "Prix pour le client (TTC)", UiKit.euro(a, fMontant)), UiKit.pleineLargeur());
+        if (!proches) {
+            long ttc = Math.max(0, Money.parseCentimes(montant));
+            String aide = ttc > 0 ? "Dont TVA " + Money.format(ttc - com.gregory.truelle.data.Tva.ht(ttc, tvaBp)) : "";
+            p.contenu.addView(UiKit.blocTva(a, "TVA", tvaBp, aide, t -> {
+                garder.run();
+                tvaBp = t;
+                a.remplacer(this);
+            }), UiKit.pleineLargeur());
+            p.contenu.addView(UiKit.libelle(a, "Ce que ça va nous coûter (prévu)", UiKit.euro(a, fCout)), UiKit.pleineLargeur());
+            LinearLayout blocPoste = UiKit.colonne(a, 8);
+            blocPoste.addView(UiKit.text(a, "Poste du coût", 16, UiKit.ENCRE_2, false));
+            String[][] postes = com.gregory.truelle.data.Postes.COURTS;
+            blocPoste.addView(UiKit.choix(a, new String[][]{postes[0], postes[1], postes[2]}, poste, choisi -> {
+                garder.run();
+                poste = choisi;
+                a.remplacer(this);
+            }), UiKit.pleineLargeur());
+            blocPoste.addView(UiKit.choix(a, new String[][]{postes[3], postes[4]}, poste, choisi -> {
+                garder.run();
+                poste = choisi;
+                a.remplacer(this);
+            }), UiKit.pleineLargeur());
+            p.contenu.addView(blocPoste, UiKit.pleineLargeur());
+        }
 
         LinearLayout blocStatut = UiKit.colonne(a, 8);
         blocStatut.addView(UiKit.text(a, "Statut", 16, UiKit.ENCRE_2, false));
@@ -92,7 +125,8 @@ public final class TravauxScreen extends Screen {
             carte.addView(iv, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(140)));
             p.contenu.addView(carte, UiKit.pleineLargeur());
         } else {
-            p.contenu.addView(UiKit.text(a, "Au forfait, tout travail en plus doit être accepté par écrit, avec son prix. Faites signer le client sur le téléphone.", 15, UiKit.ENCRE_2, false));
+            p.contenu.addView(UiKit.text(a, proches ? "Vous pouvez faire signer l'accord sur le téléphone, pour garder une trace."
+                    : "Au forfait, tout travail en plus doit être accepté par écrit, avec son prix. Faites signer le client sur le téléphone.", 15, UiKit.ENCRE_2, false));
         }
 
         p.ajouterAuPied(UiKit.boutonAction(a, "Enregistrer", v -> {
@@ -136,10 +170,19 @@ public final class TravauxScreen extends Screen {
             fMontant.setError("Indiquez le montant");
             return null;
         }
+        int bp = Math.max(0, tvaBp);
+        long ht = com.gregory.truelle.data.Tva.ht(centimes, bp);
+        long cout = coutPrevu.isEmpty() ? 0 : Math.max(0, Money.parseCentimes(coutPrevu));
         if (existant == null) {
             Map<String, String> data = new LinkedHashMap<>();
             data.put("description", description);
             data.put("montant_centimes", Long.toString(centimes));
+            data.put("ht_centimes", Long.toString(ht));
+            data.put("tva_bp", Integer.toString(bp));
+            if (cout > 0) {
+                data.put("cout_prevu_centimes", Long.toString(cout));
+                data.put("poste", poste);
+            }
             data.put("statut", statut);
             Event e = Event.create(Event.TRAVAUX, chantierId, a.auteur(), data);
             try {
@@ -154,7 +197,13 @@ public final class TravauxScreen extends Screen {
         Map<String, String> data = new LinkedHashMap<>();
         data.put("cible", existant.id);
         if (!description.equals(existant.get("description"))) data.put("description", description);
-        if (centimes != existant.centimes("montant_centimes")) data.put("montant_centimes", Long.toString(centimes));
+        if (centimes != existant.centimes("montant_centimes") || existant.get("ht_centimes").isEmpty() || bp != existant.centimes("tva_bp")) {
+            data.put("montant_centimes", Long.toString(centimes));
+            data.put("ht_centimes", Long.toString(ht));
+            data.put("tva_bp", Integer.toString(bp));
+        }
+        if (cout != existant.centimes("cout_prevu_centimes")) data.put("cout_prevu_centimes", Long.toString(cout));
+        if (cout > 0 && !poste.equals(existant.get("poste"))) data.put("poste", poste);
         if (!statut.equals(existant.get("statut"))) data.put("statut", statut);
         if (data.size() == 1 || enregistrer(chantierId, Event.CORRECTION, data)) return existant.id;
         return null;

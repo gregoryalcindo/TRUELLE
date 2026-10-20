@@ -55,6 +55,10 @@ public final class DepenseScreen extends Screen {
     private long tvaCentimes = -1;
     /** Catégorie choisie ; null = devinée depuis le fournisseur au moment d'enregistrer. */
     private String categorie;
+    /** Taux de TVA choisi (points de base), -1 = déduit de la facture ou taux du chantier. */
+    private int tvaBp = -1;
+    /** Statut de vérification choisi en modification. */
+    private Boolean valide;
 
     public DepenseScreen(MainActivity a, String chantierId, String depenseId) {
         super(a);
@@ -87,6 +91,8 @@ public final class DepenseScreen extends Screen {
             refacturer = edition ? existante.refacturer : "auto";
             tvaCentimes = edition ? existante.tvaCentimes : -1;
             categorie = edition ? existante.categorie : null;
+            tvaBp = edition ? com.gregory.truelle.data.Finance.tvaDepense(existante) : -1;
+            valide = edition ? existante.valide : null;
             if (scan != null) completerAvecLecture();
         }
 
@@ -128,15 +134,27 @@ public final class DepenseScreen extends Screen {
         duo.addView(UiKit.libelle(a, "Fournisseur", fFournisseur), UiKit.poids(1.4f));
         duo.addView(UiKit.libelle(a, "Date", fDate), UiKit.poids(1f));
         p.contenu.addView(duo, UiKit.pleineLargeur());
-        p.contenu.addView(blocCategorie(fMontant, fFournisseur), UiKit.pleineLargeur());
+        p.contenu.addView(blocCategorie(c, fMontant, fFournisseur), UiKit.pleineLargeur());
 
-        if (tvaCentimes > 0) {
-            p.contenu.addView(UiKit.text(a, "TVA lue sur la facture : " + Money.format(tvaCentimes), 16, UiKit.ENCRE_2, false));
+        com.gregory.truelle.data.Finance fin = a.finance(c);
+        if (!c.entreProches()) {
+            int bp = tauxEffectif();
+            long ttc = Math.max(0, Money.parseCentimes(montant));
+            long dontTva = ttc - com.gregory.truelle.data.Tva.ht(ttc, bp);
+            String aide = (tvaCentimes > 0 ? "TVA lue sur la facture : " + Money.format(tvaCentimes) + ". " : "")
+                    + (ttc > 0 ? "Dont TVA " + Money.format(dontTva) + (fin.r.recupereTva ? " (récupérée)." : ", comptée dans le coût.") : "");
+            p.contenu.addView(UiKit.blocTva(a, "TVA sur ce ticket", bp, aide, t -> {
+                garder(fMontant, fFournisseur);
+                tvaBp = t;
+                a.remplacer(this);
+            }), UiKit.pleineLargeur());
+            p.contenu.addView(impactBudget(fin, c, fFournisseur), UiKit.pleineLargeur());
         }
         p.contenu.addView(UiKit.text(a, "Chantier : " + c.titre + (c.client.isEmpty() ? "" : " · " + c.client), 16, UiKit.ENCRE_2, false));
 
         if (edition) {
             // Niveau « poussé » : visible seulement quand on revient sur une dépense.
+            p.contenu.addView(blocVerification(fMontant, fFournisseur), UiKit.pleineLargeur());
             p.contenu.addView(blocRefacturer(c, fMontant, fFournisseur), UiKit.pleineLargeur());
         }
 
@@ -234,6 +252,10 @@ public final class DepenseScreen extends Screen {
         if ((fournisseur == null || fournisseur.isEmpty()) && scan.lu.fournisseur != null) fournisseur = scan.lu.fournisseur;
         if (scan.lu.date != null) date = scan.lu.date;
         if (scan.lu.tvaCentimes > 0) tvaCentimes = scan.lu.tvaCentimes;
+        if (scan.lu.tvaCentimes > 0 && scan.lu.montantTrouve()) {
+            int t = com.gregory.truelle.data.Tva.deduire(scan.lu.montantCentimes, scan.lu.tvaCentimes);
+            if (t >= 0) tvaBp = t;
+        }
     }
 
     private void supprimerScanTemporaire() {
@@ -278,6 +300,8 @@ public final class DepenseScreen extends Screen {
             data.put("categorie", categorie != null ? categorie : com.gregory.truelle.data.Categories.deviner(fournisseur));
             if (fichier != null) data.put("fichier", fichier);
             if (tvaCentimes > 0) data.put("tva_centimes", Long.toString(tvaCentimes));
+            data.put("tva_bp", Integer.toString(tauxEffectif()));
+            data.put("valide", a.valideDOffice() ? "oui" : "non");
             ok = enregistrer(chantierId, Event.DEPENSE, data);
         } else {
             // On n'enregistre que ce qui a changé.
@@ -290,6 +314,8 @@ public final class DepenseScreen extends Screen {
             if (categorie != null && !categorie.equals(existante.categorie)) data.put("categorie", categorie);
             if (fichier != null) data.put("fichier", fichier);
             if (tvaCentimes != existante.tvaCentimes && tvaCentimes > 0) data.put("tva_centimes", Long.toString(tvaCentimes));
+            if (tauxEffectif() != com.gregory.truelle.data.Finance.tvaDepense(existante) || existante.tvaBp < 0) data.put("tva_bp", Integer.toString(tauxEffectif()));
+            if (valide != null && valide != existante.valide) data.put("valide", valide ? "oui" : "non");
             ok = data.size() == 1 || enregistrer(chantierId, Event.CORRECTION, data);
         }
         if (ok) {
@@ -302,8 +328,9 @@ public final class DepenseScreen extends Screen {
 
     private View blocRefacturer(Chantier c, EditText fMontant, EditText fFournisseur) {
         LinearLayout bloc = UiKit.colonne(a, 8);
-        String defaut = Chantier.MODE_REEL.equals(c.mode) ? "oui" : "non";
-        bloc.addView(UiKit.text(a, "Refacturer au client (chantier « " + (Chantier.MODE_REEL.equals(c.mode) ? "Réel" : "Forfait") + " » : " + defaut + " par défaut)", 16, UiKit.ENCRE_2, false));
+        String defaut = c.entreProches() || Chantier.MODE_REEL.equals(c.mode) ? "oui" : "non";
+        bloc.addView(UiKit.text(a, c.entreProches() ? "À rembourser par le proche (oui par défaut)"
+                : "Refacturer au client (chantier « " + (Chantier.MODE_REEL.equals(c.mode) ? "Réel" : "Forfait") + " » : " + defaut + " par défaut)", 16, UiKit.ENCRE_2, false));
         LinearLayout row = UiKit.ligne(a, 8);
         String[][] options = {{"auto", "Selon le chantier"}, {"oui", "Oui"}, {"non", "Non"}};
         for (String[] o : options) {
@@ -317,19 +344,22 @@ public final class DepenseScreen extends Screen {
         return bloc;
     }
 
-    /** Catégorie : 5 boutons sur deux lignes ; par défaut, celle devinée depuis le fournisseur. */
-    private View blocCategorie(EditText fMontant, EditText fFournisseur) {
+    /** Catégorie : boutons sur deux lignes ; par défaut, celle devinée depuis le fournisseur. */
+    private View blocCategorie(Chantier c, EditText fMontant, EditText fFournisseur) {
         String actuelle = categorie != null ? categorie
                 : com.gregory.truelle.data.Categories.deviner(fFournisseur.getText().toString());
         LinearLayout bloc = UiKit.colonne(a, 8);
         bloc.addView(UiKit.text(a, "Catégorie", 16, UiKit.ENCRE_2, false));
-        String[][] toutes = com.gregory.truelle.data.Categories.TOUTES;
-        String[][] courts = {{toutes[0][0], "Matériel"}, {toutes[1][0], "Location"}, {toutes[2][0], "Carburant"}, {toutes[3][0], "Repas"}, {toutes[4][0], "Divers"}};
-        for (int ligne = 0; ligne < 2; ligne++) {
+        String[][] courts = c.entreProches()
+                ? new String[][]{{"materiel", "Matériel"}, {"location", "Location"}, {"carburant", "Carburant"}, {"repas", "Repas"}, {"divers", "Divers"}}
+                : new String[][]{{"materiel", "Matériel"}, {"location", "Location"}, {"carburant", "Carburant"}, {"repas", "Repas"}, {"sous_traitance", "Sous-trait."}, {"divers", "Divers"}};
+        for (int debut = 0; debut < courts.length; debut += 3) {
             LinearLayout row = UiKit.ligne(a, 8);
-            int debut = ligne == 0 ? 0 : 3;
-            int fin = ligne == 0 ? 3 : 5;
-            for (int i = debut; i < fin; i++) {
+            for (int i = debut; i < debut + 3; i++) {
+                if (i >= courts.length) {
+                    row.addView(new View(a), UiKit.poids(1)); // garde la même largeur de bouton
+                    continue;
+                }
                 String[] o = courts[i];
                 row.addView(UiKit.boutonChoix(a, o[1], o[0].equals(actuelle), UiKit.ENCRE, Color.WHITE, v -> {
                     garder(fMontant, fFournisseur);
@@ -337,9 +367,50 @@ public final class DepenseScreen extends Screen {
                     a.remplacer(this);
                 }), UiKit.poids(1));
             }
-            if (ligne == 1) row.addView(new View(a), UiKit.poids(1)); // garde la même largeur de bouton
             bloc.addView(row, UiKit.pleineLargeur());
         }
+        return bloc;
+    }
+
+    /** Taux de TVA retenu : choisi, sinon déduit de la facture lue, sinon taux du chantier. */
+    private int tauxEffectif() {
+        if (tvaBp >= 0) return tvaBp;
+        long ttc = Money.parseCentimes(montant);
+        if (tvaCentimes > 0 && ttc > 0) {
+            int t = com.gregory.truelle.data.Tva.deduire(ttc, tvaCentimes);
+            if (t >= 0) return t;
+        }
+        Chantier c = store().charger(chantierId);
+        return c == null ? com.gregory.truelle.data.Tva.NORMAL : a.finance(c).tvaDefaut();
+    }
+
+    /** Ce qu'il restera dans le budget du poste après cette dépense (comme Spendesk avant d'approuver). */
+    private View impactBudget(com.gregory.truelle.data.Finance fin, Chantier c, EditText fFournisseur) {
+        String cat = categorie != null ? categorie : com.gregory.truelle.data.Categories.deviner(fFournisseur.getText().toString());
+        String poste = com.gregory.truelle.data.Postes.deCategorie(cat);
+        long budget = fin.prevuParPoste().get(poste);
+        if (budget <= 0) return new View(a);
+        long dejaPris = fin.reelParPoste().get(poste);
+        Chantier.Depense existante = depenseId == null ? null : c.depense(depenseId);
+        if (existante != null) dejaPris -= fin.coutDepense(existante);
+        long ttc = Math.max(0, Money.parseCentimes(montant));
+        long cout = fin.r.recupereTva ? com.gregory.truelle.data.Tva.ht(ttc, tauxEffectif()) : ttc;
+        long reste = budget - dejaPris - cout;
+        int couleur = reste < 0 ? UiKit.ROUGE : (budget - reste) * 10 >= budget * 8 ? UiKit.ACTION : UiKit.VERT;
+        String txt = "Budget « " + com.gregory.truelle.data.Postes.libelle(poste) + " » : "
+                + (reste >= 0 ? "il restera " + Money.format(reste) : "dépassé de " + Money.format(-reste)) + " sur " + Money.format(budget);
+        return UiKit.text(a, txt, 16, couleur, true);
+    }
+
+    /** À vérifier / Validée (ce que le terrain saisit, le gestionnaire le valide). */
+    private View blocVerification(EditText fMontant, EditText fFournisseur) {
+        LinearLayout bloc = UiKit.colonne(a, 8);
+        bloc.addView(UiKit.text(a, "Vérification", 16, UiKit.ENCRE_2, false));
+        bloc.addView(UiKit.choix(a, new String[][]{{"non", "À vérifier"}, {"oui", "Validée"}}, Boolean.TRUE.equals(valide) ? "oui" : "non", choisi -> {
+            garder(fMontant, fFournisseur);
+            valide = "oui".equals(choisi);
+            a.remplacer(this);
+        }), UiKit.pleineLargeur());
         return bloc;
     }
 
