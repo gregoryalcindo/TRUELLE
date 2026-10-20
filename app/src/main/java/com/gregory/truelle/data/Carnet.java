@@ -56,6 +56,8 @@ public final class Carnet {
     public long encaisseMois;
     public long encaisseMoisPrecedent;
     public long beneficeEstime;
+    /** Chantiers terminés : ce qui n'a pas encore été facturé. */
+    public long resteAFacturer;
     /** Chantiers en cours dont le bénéfice est estimable (un budget existe). */
     public int chantiersEstimes;
 
@@ -110,6 +112,16 @@ public final class Carnet {
                     String d = el.get("date_encaisse");
                     if (Dates.dansMois(d, auj.getYear(), auj.getMonthValue())) k.encaisseMois += f.netAPayer(el);
                     else if (Dates.dansMois(d, moisPrec.getYear(), moisPrec.getMonthValue())) k.encaisseMoisPrecedent += f.netAPayer(el);
+                }
+            }
+
+            // Chantier terminé mais pas entièrement facturé : de l'argent qui s'oublie.
+            if (termine) {
+                long reste = RecapFin.construire(f, false).totalTtc - f.factureTtc();
+                if (reste > 100) {
+                    k.resteAFacturer += reste;
+                    k.alertes.add(new Alerte(c, ATTENTION, "Terminé : reste " + Money.format(reste) + " à facturer",
+                            c.titre, null, reste));
                 }
             }
 

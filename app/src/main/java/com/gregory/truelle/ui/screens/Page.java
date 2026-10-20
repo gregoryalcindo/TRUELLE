@@ -45,6 +45,10 @@ final class Page {
     /** Écran racine : barre du bas (Carnet · Chantiers · + · Planning · Outils). */
     void barre(com.gregory.truelle.MainActivity a, String onglet) {
         if (pied.getChildCount() == 0) pied.setVisibility(View.GONE);
+        // Sur les écrans principaux, l'en-tête défile avec le reste (rien ne passe dessous).
+        racine.removeView(entete);
+        entete.setPadding(0, UiKit.dp(a, 16), 0, UiKit.dp(a, 2));
+        contenu.addView(entete, 0, UiKit.pleineLargeur());
         racine.addView(Barre.creer(a, onglet, null));
     }
 

@@ -407,7 +407,7 @@ public final class FicheScreen extends Screen {
             } else sousTraitants++;
         }
         int nDevis = c.elements(Event.DEVIS).size();
-        g.ajouter(Blocs.rangee(a, null, "Devis", nDevis == 0 ? "Aucun devis" : nousSignes + " signé" + (nousSignes > 1 ? "s" : "")
+        g.ajouter(Blocs.rangee(a, null, sansTva ? "Devis" : "Devis (TTC)", nDevis == 0 ? "Aucun devis" : nousSignes + " signé" + (nousSignes > 1 ? "s" : "")
                         + (sousTraitants > 0 ? " · " + sousTraitants + " sous-traitant" + (sousTraitants > 1 ? "s" : "") : ""),
                 devisTtc > 0 ? Money.formatCourt(devisTtc) : null, true, v -> a.ouvrir(new GererScreen(a, c.id, GererScreen.DEVIS))));
 
@@ -421,7 +421,7 @@ public final class FicheScreen extends Screen {
             sb.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD), debut, sb.length(), 0);
             sousDep = sb;
         }
-        g.ajouter(Blocs.rangee(a, null, "Dépenses", sousDep, nDep > 0 ? Money.formatCourt(c.totalDepensesCentimes()) : null, true,
+        g.ajouter(Blocs.rangee(a, null, sansTva ? "Dépenses" : "Dépenses (TTC)", sousDep, nDep > 0 ? Money.formatCourt(c.totalDepensesCentimes()) : null, true,
                 v -> a.ouvrir(new GererScreen(a, c.id, GererScreen.DEPENSES))));
 
         long cout = 0;
@@ -445,7 +445,7 @@ public final class FicheScreen extends Screen {
         String sousFact = c.elements(Event.FACTURATION).isEmpty() ? "Rien de facturé" :
                 "Payé " + Money.formatCourt(encaisse) + " · reste " + Money.formatCourt(Math.max(0, total - encaisse - f.retenues()));
         g.ajouter(Blocs.rangee(a, null, "Factures et paiements", sousFact,
-                total > 0 ? Finance.pourcent(Math.min(10000, Math.round(encaisse * 10000.0 / total))) : null, true,
+                total > 0 ? Math.min(100, Math.round(encaisse * 100.0 / total)) + " % payé" : null, true,
                 v -> a.ouvrir(new GererScreen(a, c.id, GererScreen.FACTURATION))));
 
         g.ajouter(Blocs.rangee(a, null, "Documents PDF", "Récapitulatif client" + (sansTva ? " sans TVA" : "") + " · dossier des factures",

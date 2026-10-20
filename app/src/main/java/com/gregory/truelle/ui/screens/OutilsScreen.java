@@ -64,6 +64,17 @@ public final class OutilsScreen extends Screen {
                 v -> a.ouvrir(new ReglagesFinanceScreen(a))));
         p.contenu.addView(r.vue, UiKit.pleineLargeur());
 
+        String version = "";
+        try {
+            version = a.getPackageManager().getPackageInfo(a.getPackageName(), 0).versionName;
+        } catch (Exception ignored) {
+            // version inconnue
+        }
+        TextView v = UiKit.text(a, "TRUELLE " + version, 14, UiKit.ENCRE_2, false);
+        v.setGravity(Gravity.CENTER);
+        v.setPadding(0, dp(8), 0, dp(8));
+        p.contenu.addView(v, UiKit.pleineLargeur());
+
         p.barre(a, MainActivity.ONGLET_OUTILS);
         return p.racine;
     }

@@ -130,4 +130,24 @@ public class CarnetTest {
             Dates.aujourdhuiFixe = null;
         }
     }
+
+    @Test
+    public void carnet_chantierTermineAvecResteAFacturer() {
+        List<Ligne> l = Arrays.asList(new Ligne());
+        l.get(0).designation = "Mur";
+        l.get(0).quantiteMilli = 1000;
+        l.get(0).puHtCentimes = 508500;
+        l.get(0).tvaBp = 0;
+        List<Event> e = Arrays.asList(
+                ev("c", Event.CHANTIER_CREE, "titre", "Mur ext", "tva_defaut_bp", "0"),
+                ev("d", Event.DEVIS, "sorte", "nous", "statut", "signe", "lignes", Ligne.encoder(l)),
+                ev("f", Event.FACTURATION, "libelle", "Acompte", "montant_centimes", "150000", "tva_bp", "0",
+                        "statut", "encaisse", "date_encaisse", "10/10/2026"),
+                ev("s", Event.STATUT, "valeur", Chantier.TERMINE));
+        Carnet k = Carnet.construire(Arrays.asList(Chantier.replay("c1", e)), new Reglages());
+        assertEquals(358500, k.resteAFacturer);
+        assertEquals(1, k.alertes.size());
+        assertEquals(Carnet.ATTENTION, k.alertes.get(0).niveau);
+        assertTrue(k.alertes.get(0).titre.contains("à facturer"));
+    }
 }
