@@ -71,10 +71,8 @@ public final class FinChantierScreen extends Screen {
     private View blocRecap(Chantier c, Map<String, String> entreprise) {
         RecapFin recap = RecapFin.construire(a.finance(c), joindreFactures);
         LinearLayout bloc = carte();
-        boolean proches = c.entreProches();
-        bloc.addView(UiKit.titre(a, proches ? "1. Décompte des travaux" : "1. Récapitulatif client", 22));
-        bloc.addView(UiKit.text(a, proches ? "Achats à rembourser, main d'œuvre et versements, avec les tickets en annexe."
-                : "À envoyer au client. Accompagne votre facture, ne la remplace pas.", 15, UiKit.ENCRE_2, false));
+        bloc.addView(UiKit.titre(a, "1. Récapitulatif client", 22));
+        bloc.addView(UiKit.text(a, "À envoyer au client. Accompagne votre facture, ne la remplace pas.", 15, UiKit.ENCRE_2, false));
         for (RecapFin.Section s : recap.sections) {
             bloc.addView(UiKit.ligneChiffre(a, s.titre + " (" + s.lignes.size() + ")", Money.format(s.total), false), UiKit.pleineLargeur());
         }
@@ -87,8 +85,8 @@ public final class FinChantierScreen extends Screen {
                 bloc.addView(UiKit.ligneChiffre(a, "TVA " + com.gregory.truelle.data.Tva.libelle(e.getKey()), Money.format(e.getValue()), false), UiKit.pleineLargeur());
             }
         }
-        bloc.addView(UiKit.ligneChiffre(a, proches || recap.totalTva == 0 ? "Total" : "Total TTC", Money.format(recap.totalTtc), true), UiKit.pleineLargeur());
-        bloc.addView(UiKit.ligneChiffre(a, proches ? "Déjà versé" : "Déjà réglé", Money.format(recap.dejaRegle), false), UiKit.pleineLargeur());
+        bloc.addView(UiKit.ligneChiffre(a, recap.totalTva == 0 ? "Total" : "Total TTC", Money.format(recap.totalTtc), true), UiKit.pleineLargeur());
+        bloc.addView(UiKit.ligneChiffre(a, "Déjà réglé", Money.format(recap.dejaRegle), false), UiKit.pleineLargeur());
         if (recap.retenues > 0) bloc.addView(UiKit.ligneChiffre(a, "Retenue de garantie", Money.format(recap.retenues), false), UiKit.pleineLargeur());
         if (!recap.mentionTva.isEmpty()) bloc.addView(UiKit.text(a, recap.mentionTva, 14, UiKit.ENCRE_2, false));
         bloc.addView(UiKit.ligneChiffre(a, "Reste à payer", Money.format(recap.resteAPayer()), true), UiKit.pleineLargeur());

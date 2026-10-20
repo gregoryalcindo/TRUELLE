@@ -194,55 +194,41 @@ public class FinanceTest {
     }
 
     @Test
-    public void entreProches_mainOeuvreAuForfait() {
-        add("c", Event.CHANTIER_CREE, "titre", "Cuisine du neveu", "type", "proches", "mo_mode", "forfait", "forfait_mo_centimes", "80000");
-        add("e1", Event.DEPENSE, "montant_centimes", "45900", "categorie", "materiel");
-        add("h1", Event.HEURES, "heures_centiemes", "1600");
-        add("h2", Event.HEURES, "heures_centiemes", "400", "taux_centimes", "3000");   // ignoré au forfait
-        Finance f = new Finance(Chantier.replay("c1", ev), new Reglages());
-        assertTrue(f.c.moAuForfait());
-        assertEquals(80000, f.mainOeuvreDue());                  // forfait, quelles que soient les heures
-        assertEquals(0, f.coutHeure(f.c.heures().get(0)));
-        assertEquals(4000, f.tauxEquivalentForfait());           // 800 € / 20 h = 40 €/h
-        assertEquals(125900, f.venduHt());
-        RecapFin r = RecapFin.construire(f, false);
-        assertEquals(125900, r.totalTtc);
-        RecapFin.Section mo = r.sections.get(r.sections.size() - 1);
-        assertEquals(1, mo.lignes.size());
-        assertEquals(80000, mo.total);
+    public void entreProches_commeUnChantierPro_maisSansTva() {
+        add("c", Event.CHANTIER_CREE, "titre", "Terrasse du neveu", "type", "proches", "mode", "reel");
+        // Devis à 20 % saisi par erreur : sans TVA quand même. La main d'œuvre au forfait est une ligne du devis.
+        List<Ligne> l = Arrays.asList(
+                ligne("Main d'œuvre (forfait)", "1", 80000, 2000, 0, Postes.MAIN_OEUVRE),
+                ligne("Lames bois", "1", 60000, 2000, 45000, Postes.MATERIAUX));
+        add("d1", Event.DEVIS, "sorte", "nous", "statut", "signe", "lignes", Ligne.encoder(l));
+        add("e1", Event.DEPENSE, "montant_centimes", "45900", "tva_bp", "2000", "categorie", "materiel", "refacturer", "non");
+        add("e2", Event.DEPENSE, "montant_centimes", "6000", "categorie", "carburant");          // mode réel : remboursé
+        add("t1", Event.TRAVAUX, "description", "Marche", "montant_centimes", "15000", "tva_bp", "1000", "statut", "accepte");
+        add("h1", Event.HEURES, "heures_centiemes", "1000");
+        add("v1", Event.FACTURATION, "libelle", "Acompte", "montant_centimes", "50000", "tva_bp", "2000", "statut", "encaisse");
 
-        // Sans choix ni taux : forfait par défaut. Avec un taux réglé (anciens chantiers) : à l'heure.
-        ev.clear();
-        add("c", Event.CHANTIER_CREE, "titre", "T", "type", "proches");
-        assertTrue(Chantier.replay("c1", ev).moAuForfait());
-        add("m", Event.CHANTIER_MODIFIE, "taux_convenu_centimes", "2000");
-        assertFalse(Chantier.replay("c1", ev).moAuForfait());
-        add("m2", Event.CHANTIER_MODIFIE, "mo_mode", "forfait");
-        assertTrue(Chantier.replay("c1", ev).moAuForfait());
-    }
-
-    @Test
-    public void entreProches_decompteSansTva() {
-        add("c", Event.CHANTIER_CREE, "titre", "Terrasse du neveu", "type", "proches", "taux_convenu_centimes", "2000");
-        add("e1", Event.DEPENSE, "montant_centimes", "45900", "tva_bp", "2000", "fournisseur", "Leroy Merlin", "categorie", "materiel");
-        add("e2", Event.DEPENSE, "montant_centimes", "6000", "categorie", "carburant");
-        add("h1", Event.HEURES, "heures_centiemes", "750", "date", "18/10/2026");
-        add("h2", Event.HEURES, "heures_centiemes", "800");
-        add("v1", Event.FACTURATION, "libelle", "Versement", "ht_centimes", "30000", "statut", "encaisse");
-
-        Finance f = new Finance(Chantier.replay("c1", ev), new Reglages());
+        Reglages r = new Reglages();
+        r.recupereTva = true;                                    // ignoré : rien n'est déclaré
+        r.tauxHoraireCentimes = 2500;
+        r.fraisGenerauxBp = 1000;
+        Finance f = new Finance(Chantier.replay("c1", ev), r);
         assertEquals(0, f.tvaDefaut());
-        assertEquals(51900, f.materielRefactureHt());            // tickets TTC, tous remboursables
-        assertEquals(31000, f.mainOeuvreDue());                  // 15,5 h × 20 €
-        assertEquals(82900, f.venduHt());
-        assertEquals(30000, f.encaisse());
-        assertEquals(0, f.fraisGeneraux(100000));
+        assertEquals(140000, f.totaux(f.c.elements(Event.DEVIS).get(0)).ttc);   // 800 + 600, sans TVA
+        assertEquals(0, f.totaux(f.c.elements(Event.DEVIS).get(0)).tva);
+        assertEquals(15000, f.ttcTravaux(f.c.elements(Event.TRAVAUX).get(0)));
+        assertEquals(161000, f.venduHt());                       // 1 400 + 150 + 60 de carburant remboursé
+        assertEquals(45900, f.coutDepense(f.c.depense("e1")));   // coût = prix payé TTC
+        assertEquals(25000, f.coutHeure(f.c.heures().get(0)));   // 10 h × 25 €, comme en pro
+        assertEquals(10000, f.fraisGeneraux(100000));            // mêmes frais généraux qu'en pro
+        assertEquals(50000, f.encaisse());
+        assertEquals(0, f.tvaCollectee());
+        assertEquals(0, f.tvaDeductible());
 
-        RecapFin r = RecapFin.construire(f, true);
-        assertEquals(82900, r.totalTtc);
-        assertEquals(0, r.totalTva);
-        assertEquals(52900, r.resteAPayer());
-        assertEquals("", r.mentionTva);
+        RecapFin rec = RecapFin.construire(f, false);
+        assertEquals(0, rec.totalTva);
+        assertEquals(161000, rec.totalTtc);
+        assertEquals(111000, rec.resteAPayer());
+        assertEquals("", rec.mentionTva);
     }
 
     @Test

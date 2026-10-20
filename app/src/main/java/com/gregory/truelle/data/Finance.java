@@ -29,7 +29,7 @@ public final class Finance {
         return c.entreProches() ? Tva.AUCUNE : r.tvaPour(c);
     }
 
-    /** Entre proches : pas de TVA, coûts en TTC, pas de frais généraux. */
+    /** Entre proches : fonctionne comme un chantier pro, mais sans aucune TVA (chantier non déclaré). */
     public boolean proches() {
         return c.entreProches();
     }
@@ -177,30 +177,14 @@ public final class Finance {
 
     // ================================================================ main d'œuvre
 
-    /** Pro : coût horaire chargé. Entre proches : taux convenu, payé par le proche. */
+    /** Coût horaire chargé (réglages de l'appli), sauf taux saisi sur la ligne d'heures. */
     public long tauxHeure(Chantier.Heure h) {
         if (h.tauxCentimes >= 0) return h.tauxCentimes;
-        return proches() ? c.tauxConvenuCentimes : r.tauxHoraireCentimes;
+        return r.tauxHoraireCentimes;
     }
 
-    /** Entre proches : main d'œuvre due — le forfait convenu, ou heures × taux convenu. */
-    public long mainOeuvreDue() {
-        if (!proches()) return 0;
-        if (c.moAuForfait()) return c.forfaitMoCentimes;
-        long t = 0;
-        for (Chantier.Heure h : c.heures()) t += coutHeure(h);
-        return t;
-    }
-
-    /** Entre proches au forfait : ce que le forfait représente par heure saisie (0 sans heures). */
-    public long tauxEquivalentForfait() {
-        long h = totalHeuresCentiemes();
-        return h <= 0 ? 0 : Tva.arrondi(c.forfaitMoCentimes * 100L, h);
-    }
-
-    /** Coût d'une ligne d'heures. Entre proches au forfait : 0 (le forfait est compté une fois). */
+    /** Coût d'une ligne d'heures. La main d'œuvre vendue au client passe par les lignes des devis. */
     public long coutHeure(Chantier.Heure h) {
-        if (proches() && c.moAuForfait()) return 0;
         return Tva.arrondi(h.heuresCentiemes * tauxHeure(h), 100);
     }
 
@@ -230,9 +214,9 @@ public final class Finance {
         return t;
     }
 
-    /** Chiffre d'affaires validé hors TVA. Entre proches : total dû (achats + main d'œuvre + travaux convenus). */
+    /** Chiffre d'affaires validé hors TVA (entre proches : sans TVA, donc le montant payé). */
     public long venduHt() {
-        return devisSignesHt() + travauxAcceptesHt() + materielRefactureHt() + mainOeuvreDue();
+        return devisSignesHt() + travauxAcceptesHt() + materielRefactureHt();
     }
 
     /** CHIFFRÉ : nos devis en cours (brouillon, envoyés, signés), pour information. */
@@ -347,7 +331,6 @@ public final class Finance {
     }
 
     public long fraisGeneraux(long deboursSec) {
-        if (proches()) return 0;
         return Tva.arrondi(deboursSec * (long) r.fraisGenerauxBp, 10000);
     }
 

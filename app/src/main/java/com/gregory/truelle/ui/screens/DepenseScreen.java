@@ -328,9 +328,8 @@ public final class DepenseScreen extends Screen {
 
     private View blocRefacturer(Chantier c, EditText fMontant, EditText fFournisseur) {
         LinearLayout bloc = UiKit.colonne(a, 8);
-        String defaut = c.entreProches() || Chantier.MODE_REEL.equals(c.mode) ? "oui" : "non";
-        bloc.addView(UiKit.text(a, c.entreProches() ? "À rembourser par le proche (oui par défaut)"
-                : "Refacturer au client (chantier « " + (Chantier.MODE_REEL.equals(c.mode) ? "Réel" : "Forfait") + " » : " + defaut + " par défaut)", 16, UiKit.ENCRE_2, false));
+        String defaut = Chantier.MODE_REEL.equals(c.mode) ? "oui" : "non";
+        bloc.addView(UiKit.text(a, "Refacturer au client (chantier « " + (Chantier.MODE_REEL.equals(c.mode) ? "Réel" : "Forfait") + " » : " + defaut + " par défaut)", 16, UiKit.ENCRE_2, false));
         LinearLayout row = UiKit.ligne(a, 8);
         String[][] options = {{"auto", "Selon le chantier"}, {"oui", "Oui"}, {"non", "Non"}};
         for (String[] o : options) {
@@ -350,9 +349,7 @@ public final class DepenseScreen extends Screen {
                 : com.gregory.truelle.data.Categories.deviner(fFournisseur.getText().toString());
         LinearLayout bloc = UiKit.colonne(a, 8);
         bloc.addView(UiKit.text(a, "Catégorie", 16, UiKit.ENCRE_2, false));
-        String[][] courts = c.entreProches()
-                ? new String[][]{{"materiel", "Matériel"}, {"location", "Location"}, {"carburant", "Carburant"}, {"repas", "Repas"}, {"divers", "Divers"}}
-                : new String[][]{{"materiel", "Matériel"}, {"location", "Location"}, {"carburant", "Carburant"}, {"repas", "Repas"}, {"sous_traitance", "Sous-trait."}, {"divers", "Divers"}};
+        String[][] courts = new String[][]{{"materiel", "Matériel"}, {"location", "Location"}, {"carburant", "Carburant"}, {"repas", "Repas"}, {"sous_traitance", "Sous-trait."}, {"divers", "Divers"}};
         for (int debut = 0; debut < courts.length; debut += 3) {
             LinearLayout row = UiKit.ligne(a, 8);
             for (int i = debut; i < debut + 3; i++) {

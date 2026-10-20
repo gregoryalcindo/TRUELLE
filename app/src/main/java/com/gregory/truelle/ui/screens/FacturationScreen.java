@@ -25,7 +25,7 @@ import java.util.Map;
 /**
  * Pro : une ligne du suivi de facturation (acompte, situation, solde). Pas une facture légale :
  * on note le numéro de la vraie facture pour faire le lien.
- * Entre proches : un versement du proche.
+ * Entre proches : pareil, sans TVA.
  */
 public final class FacturationScreen extends Screen {
 
@@ -57,10 +57,10 @@ public final class FacturationScreen extends Screen {
         Finance fin = c == null ? null : a.finance(c);
         boolean proches = c != null && c.entreProches();
         if (libelle == null && c != null) {
-            type = edition ? existant.get("type") : (proches ? "versement" : ACOMPTE);
-            libelle = edition ? existant.get("libelle") : (proches ? "Versement" : "Acompte");
+            type = edition ? existant.get("type") : ACOMPTE;
+            libelle = edition ? existant.get("libelle") : "Acompte";
             montant = edition ? Money.toInput(fin.ttcFacture(existant)) : "";
-            statut = edition ? existant.get("statut") : (proches ? Chantier.FACT_ENCAISSE : Chantier.FACT_A_FACTURER);
+            statut = edition ? existant.get("statut") : Chantier.FACT_A_FACTURER;
             numero = edition ? existant.get("numero") : "";
             tvaBp = edition ? fin.tvaFacture(existant) : fin.tvaDefaut();
             pourcentage = edition && !existant.get("pourcentage_bp").isEmpty() ? Tva.libelle((int) existant.centimes("pourcentage_bp")).replace(" %", "") : "";
@@ -68,7 +68,7 @@ public final class FacturationScreen extends Screen {
 
         Page p = new Page(a);
         p.entete.addView(UiKit.retour(a, "Annuler", v -> a.retour()));
-        p.entete.addView(UiKit.titre(a, proches ? (edition ? "Versement" : "Nouveau versement") : (edition ? "Ligne de facturation" : "Nouvelle facturation"), 30));
+        p.entete.addView(UiKit.titre(a, edition ? "Ligne de facturation" : "Nouvelle facturation", 30));
         if (c == null) return p.racine;
 
         EditText fLibelle = UiKit.champTexte(a, libelle);
@@ -86,7 +86,8 @@ public final class FacturationScreen extends Screen {
         };
 
         long venduTtc = venduTtc(fin);
-        if (!proches) {
+        String ttcLib = proches ? "" : " (TTC)";
+        {
             p.contenu.addView(UiKit.choix(a, new String[][]{{ACOMPTE, "Acompte"}, {SITUATION, "Situation"}, {SOLDE, "Solde"}}, type, choisi -> {
                 garder.run();
                 type = choisi;
@@ -94,8 +95,8 @@ public final class FacturationScreen extends Screen {
                 if (SOLDE.equals(choisi)) montant = Money.toInput(Math.max(0, venduTtc - dejaFactureTtc(fin, existant)));
                 a.remplacer(this);
             }), UiKit.pleineLargeur());
-            p.contenu.addView(UiKit.ligneChiffre(a, "Montant du chantier (TTC)", Money.format(venduTtc), false), UiKit.pleineLargeur());
-            p.contenu.addView(UiKit.ligneChiffre(a, "Déjà facturé (TTC)", Money.format(dejaFactureTtc(fin, existant)), false), UiKit.pleineLargeur());
+            p.contenu.addView(UiKit.ligneChiffre(a, "Montant du chantier" + ttcLib, Money.format(venduTtc), false), UiKit.pleineLargeur());
+            p.contenu.addView(UiKit.ligneChiffre(a, "Déjà facturé" + ttcLib, Money.format(dejaFactureTtc(fin, existant)), false), UiKit.pleineLargeur());
 
             if (ACOMPTE.equals(type) || SITUATION.equals(type)) {
                 String lib = ACOMPTE.equals(type) ? "Acompte en % du chantier" : "Avancement cumulé des travaux (%)";
@@ -119,35 +120,37 @@ public final class FacturationScreen extends Screen {
         }
 
         p.contenu.addView(UiKit.libelle(a, "Intitulé", fLibelle), UiKit.pleineLargeur());
-        p.contenu.addView(UiKit.libelle(a, proches ? "Montant versé" : "Montant TTC", UiKit.euro(a, fMontant)), UiKit.pleineLargeur());
+        p.contenu.addView(UiKit.libelle(a, proches ? "Montant" : "Montant TTC", UiKit.euro(a, fMontant)), UiKit.pleineLargeur());
 
-        if (!proches) {
+        {
             long ttc = Math.max(0, Money.parseCentimes(montant));
-            String aide = ttc > 0 ? "Dont TVA " + Money.format(ttc - Tva.ht(ttc, tvaBp)) : "";
+            String aide = ttc > 0 && !proches ? "Dont TVA " + Money.format(ttc - Tva.ht(ttc, tvaBp)) : "";
             if (c.retenueBp > 0 && ttc > 0) {
                 long ret = Tva.arrondi(ttc * (long) c.retenueBp, 10000);
                 aide += (aide.isEmpty() ? "" : " · ") + "retenue de garantie " + Tva.libelle(c.retenueBp) + " : " + Money.format(ret)
                         + " · net à payer " + Money.format(ttc - ret);
             }
-            p.contenu.addView(UiKit.blocTva(a, "TVA", tvaBp, aide, t -> {
-                garder.run();
-                tvaBp = t;
-                a.remplacer(this);
-            }), UiKit.pleineLargeur());
+            if (!proches) {
+                p.contenu.addView(UiKit.blocTva(a, "TVA", tvaBp, aide, t -> {
+                    garder.run();
+                    tvaBp = t;
+                    a.remplacer(this);
+                }), UiKit.pleineLargeur());
+            } else if (!aide.isEmpty()) {
+                p.contenu.addView(UiKit.text(a, aide, 15, UiKit.ENCRE_2, false));
+            }
         }
 
         LinearLayout blocStatut = UiKit.colonne(a, 8);
         blocStatut.addView(UiKit.text(a, "Statut", 16, UiKit.ENCRE_2, false));
-        String[][] options = proches
-                ? new String[][]{{Chantier.FACT_FACTURE, "Prévu"}, {Chantier.FACT_ENCAISSE, "Reçu"}}
-                : new String[][]{{Chantier.FACT_A_FACTURER, "À facturer"}, {Chantier.FACT_FACTURE, "Facturé"}, {Chantier.FACT_ENCAISSE, "Encaissé"}};
+        String[][] options = new String[][]{{Chantier.FACT_A_FACTURER, "À facturer"}, {Chantier.FACT_FACTURE, "Facturé"}, {Chantier.FACT_ENCAISSE, "Encaissé"}};
         blocStatut.addView(UiKit.choix(a, options, statut, choisi -> {
             garder.run();
             statut = choisi;
             a.remplacer(this);
         }), UiKit.pleineLargeur());
         p.contenu.addView(blocStatut, UiKit.pleineLargeur());
-        if (!proches) p.contenu.addView(UiKit.libelle(a, "N° de la vraie facture", fNumero), UiKit.pleineLargeur());
+        p.contenu.addView(UiKit.libelle(a, "N° de la vraie facture", fNumero), UiKit.pleineLargeur());
 
         p.ajouterAuPied(UiKit.boutonAction(a, "Enregistrer", v -> {
             garder.run();
@@ -171,7 +174,7 @@ public final class FacturationScreen extends Screen {
                 data.put("montant_centimes", Long.toString(centimes));
                 data.put("ht_centimes", Long.toString(ht));
                 data.put("tva_bp", Integer.toString(bp));
-                data.put("retenue_bp", Integer.toString(proches ? 0 : c.retenueBp));
+                data.put("retenue_bp", Integer.toString(c.retenueBp));
                 int pct = Tva.parse(pourcentage);
                 if (pct >= 0 && !pourcentage.isEmpty()) data.put("pourcentage_bp", Integer.toString(pct));
                 data.put("statut", statut);
@@ -197,7 +200,7 @@ public final class FacturationScreen extends Screen {
                 ok = data.size() == 1 || enregistrer(chantierId, Event.CORRECTION, data);
             }
             if (ok) {
-                toast(proches ? "Versement enregistré ✓" : "Ligne enregistrée ✓");
+                toast("Ligne enregistrée ✓");
                 a.retour();
             }
         }));

@@ -97,7 +97,7 @@ public final class AjouterScreen extends Screen {
             a.retour();
             a.ouvrir(new HeuresScreen(a, chantierId, null));
         }), new LinearLayout.LayoutParams(0, dp(120), 1f));
-        tuiles2.addView(tuile(c != null && c.entreProches() ? "Travaux" : "Travaux en plus", R.drawable.ic_plus_box, false, v -> {
+        tuiles2.addView(tuile("Travaux en plus", R.drawable.ic_plus_box, false, v -> {
             a.retour();
             a.ouvrir(new TravauxScreen(a, chantierId, null));
         }), new LinearLayout.LayoutParams(0, dp(120), 1f));

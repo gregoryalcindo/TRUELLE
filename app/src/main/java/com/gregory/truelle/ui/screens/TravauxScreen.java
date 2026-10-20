@@ -59,7 +59,7 @@ public final class TravauxScreen extends Screen {
         Page p = new Page(a);
         p.entete.addView(UiKit.retour(a, "Annuler", v -> a.retour()));
         boolean proches = c != null && c.entreProches();
-        p.entete.addView(UiKit.titre(a, proches ? (edition ? "Travaux convenus" : "Nouveaux travaux") : (edition ? "Travaux en plus" : "Nouveaux travaux"), 30));
+        p.entete.addView(UiKit.titre(a, edition ? "Travaux en plus" : "Nouveaux travaux", 30));
         if (c == null) return p.racine;
 
         EditText fDesc = UiKit.champ(a, description, InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
@@ -76,15 +76,17 @@ public final class TravauxScreen extends Screen {
         };
 
         p.contenu.addView(UiKit.libelle(a, "Description", fDesc), UiKit.pleineLargeur());
-        p.contenu.addView(UiKit.libelle(a, proches ? "Montant convenu" : "Prix pour le client (TTC)", UiKit.euro(a, fMontant)), UiKit.pleineLargeur());
-        if (!proches) {
-            long ttc = Math.max(0, Money.parseCentimes(montant));
-            String aide = ttc > 0 ? "Dont TVA " + Money.format(ttc - com.gregory.truelle.data.Tva.ht(ttc, tvaBp)) : "";
-            p.contenu.addView(UiKit.blocTva(a, "TVA", tvaBp, aide, t -> {
-                garder.run();
-                tvaBp = t;
-                a.remplacer(this);
-            }), UiKit.pleineLargeur());
+        p.contenu.addView(UiKit.libelle(a, proches ? "Prix pour le client" : "Prix pour le client (TTC)", UiKit.euro(a, fMontant)), UiKit.pleineLargeur());
+        {
+            if (!proches) {
+                long ttc = Math.max(0, Money.parseCentimes(montant));
+                String aide = ttc > 0 ? "Dont TVA " + Money.format(ttc - com.gregory.truelle.data.Tva.ht(ttc, tvaBp)) : "";
+                p.contenu.addView(UiKit.blocTva(a, "TVA", tvaBp, aide, t -> {
+                    garder.run();
+                    tvaBp = t;
+                    a.remplacer(this);
+                }), UiKit.pleineLargeur());
+            }
             p.contenu.addView(UiKit.libelle(a, "Ce que ça va nous coûter (prévu)", UiKit.euro(a, fCout)), UiKit.pleineLargeur());
             LinearLayout blocPoste = UiKit.colonne(a, 8);
             blocPoste.addView(UiKit.text(a, "Poste du coût", 16, UiKit.ENCRE_2, false));
@@ -125,8 +127,7 @@ public final class TravauxScreen extends Screen {
             carte.addView(iv, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(140)));
             p.contenu.addView(carte, UiKit.pleineLargeur());
         } else {
-            p.contenu.addView(UiKit.text(a, proches ? "Vous pouvez faire signer l'accord sur le téléphone, pour garder une trace."
-                    : "Au forfait, tout travail en plus doit être accepté par écrit, avec son prix. Faites signer le client sur le téléphone.", 15, UiKit.ENCRE_2, false));
+            p.contenu.addView(UiKit.text(a, "Au forfait, tout travail en plus doit être accepté par écrit, avec son prix. Faites signer le client sur le téléphone.", 15, UiKit.ENCRE_2, false));
         }
 
         p.ajouterAuPied(UiKit.boutonAction(a, "Enregistrer", v -> {

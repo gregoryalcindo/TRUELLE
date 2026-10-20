@@ -33,8 +33,8 @@ import java.util.Map;
 
 /**
  * « Gérer le chantier » : le niveau poussé, en onglets.
- * Pro : Devis · Dépenses · Heures · Travaux + · Facturation · Réglages.
- * Entre proches : Dépenses · Heures · Travaux · Versements · Réglages.
+ * Devis · Dépenses · Heures · Travaux + · Facturation · Réglages,
+ * identiques pour un chantier pro ou entre proches (ce dernier, simplement sans TVA).
  */
 public final class GererScreen extends Screen {
 
@@ -49,7 +49,7 @@ public final class GererScreen extends Screen {
     private String onglet;
 
     // Réglages du chantier en cours d'édition (gardés si l'écran est redessiné).
-    private String rTitre, rClient, rAdresse, rMode, rBudget, rType, rTaux, rForfait, rMoMode;
+    private String rTitre, rClient, rAdresse, rMode, rBudget, rType;
     private int rMajoration = -1, rTva = -1, rRetenue = -1, rAvancement = -2;
 
     public GererScreen(MainActivity a, String chantierId, String onglet) {
@@ -73,7 +73,7 @@ public final class GererScreen extends Screen {
 
         LinearLayout ligneTitre = UiKit.ligne(a, 12);
         ligneTitre.addView(UiKit.titre(a, "Gérer le chantier", 30), UiKit.poids(1));
-        ligneTitre.addView(UiKit.chipContour(a, c.entreProches() ? "Entre proches" : Chantier.MODE_REEL.equals(c.mode) ? "Réel" : "Forfait"));
+        ligneTitre.addView(UiKit.chipContour(a, c.entreProches() ? "Sans TVA" : Chantier.MODE_REEL.equals(c.mode) ? "Réel" : "Forfait"));
         p.entete.addView(ligneTitre, UiKit.pleineLargeur());
         p.entete.addView(resume(f), UiKit.pleineLargeur());
         p.entete.addView(onglets(c));
@@ -89,19 +89,14 @@ public final class GererScreen extends Screen {
         return p.racine;
     }
 
-    /** Bandeau cliquable : budget et bénéfice (pro) ou reste à verser (entre proches) → tableau de bord. */
+    /** Bandeau cliquable : budget et bénéfice → tableau de bord. */
     private View resume(Finance f) {
         LinearLayout row = UiKit.ligne(a, 10);
         row.setPadding(dp(16), dp(12), dp(12), dp(12));
         row.setBackground(UiKit.ripple(UiKit.rounded(UiKit.SURFACE, dp(14), 0, 0)));
         row.setClickable(true);
         LinearLayout textes = UiKit.colonne(a, 2);
-        if (f.proches()) {
-            long reste = com.gregory.truelle.data.RecapFin.construire(f, false).totalTtc - f.encaisse();
-            textes.addView(UiKit.text(a, "Reste à verser", 16, UiKit.ENCRE_2, false));
-            textes.addView(UiKit.text(a, Money.format(reste), 20, UiKit.ENCRE, true));
-            row.setContentDescription("Voir le décompte");
-        } else {
+        {
             Finance.Synthese s = f.prevision();
             long conso = f.consommeBp();
             textes.addView(UiKit.text(a, conso >= 0 ? "Budget consommé : " + Finance.pourcent(conso) : "Budget : à définir dans les devis", 16,
@@ -117,9 +112,7 @@ public final class GererScreen extends Screen {
     }
 
     private View onglets(Chantier c) {
-        String[][] liste = c.entreProches()
-                ? new String[][]{{DEPENSES, "Dépenses"}, {HEURES, "Main d'œuvre"}, {TRAVAUX, "Travaux"}, {FACTURATION, "Versements"}, {REGLAGES, "Réglages"}}
-                : new String[][]{{DEVIS, "Devis"}, {DEPENSES, "Dépenses"}, {HEURES, "Heures"}, {TRAVAUX, "Travaux +"}, {FACTURATION, "Facturation"}, {REGLAGES, "Réglages"}};
+        String[][] liste = new String[][]{{DEVIS, "Devis"}, {DEPENSES, "Dépenses"}, {HEURES, "Heures"}, {TRAVAUX, "Travaux +"}, {FACTURATION, "Facturation"}, {REGLAGES, "Réglages"}};
         LinearLayout row = UiKit.ligne(a, 8);
         row.setPadding(0, dp(4), 0, 0);
         for (String[] o : liste) {
@@ -228,7 +221,7 @@ public final class GererScreen extends Screen {
         for (int i = liste.size() - 1; i >= 0; i--) {
             Chantier.Depense d = liste.get(i);
             TextView chip = !d.valide ? UiKit.chip(a, "À vérifier", UiKit.BLEU_FOND, UiKit.BLEU)
-                    : c.estARefacturer(d) ? UiKit.chipContour(a, c.entreProches() ? "À rembourser" : "À refacturer")
+                    : c.estARefacturer(d) ? UiKit.chipContour(a, "À refacturer")
                     : UiKit.chip(a, "Interne", UiKit.GRIS_FOND, UiKit.GRIS);
             String sous = Categories.libelle(d.categorie) + (d.date.isEmpty() ? "" : " · " + d.date)
                     + (c.entreProches() ? "" : " · TVA " + Tva.libelle(Finance.tvaDepense(d)))
@@ -262,34 +255,19 @@ public final class GererScreen extends Screen {
         long cout = 0;
         for (Chantier.Heure h : liste) cout += f.coutHeure(h);
         LinearLayout recap = carte();
-        boolean forfait = f.proches() && f.c.moAuForfait();
-        if (forfait) {
-            recap.addView(UiKit.ligneChiffre(a, "Main d'œuvre au forfait", Money.format(f.c.forfaitMoCentimes), true), UiKit.pleineLargeur());
-            if (f.c.forfaitMoCentimes <= 0) {
-                recap.addView(UiKit.text(a, "Indiquez le montant du forfait dans l'onglet Réglages.", 15, UiKit.ENCRE_2, false));
-            }
-            recap.addView(UiKit.ligneChiffre(a, "Heures notées (pour info)", Heures.format(f.totalHeuresCentiemes()), false), UiKit.pleineLargeur());
-            if (f.tauxEquivalentForfait() > 0) {
-                recap.addView(UiKit.ligneChiffre(a, "Soit, par heure", Money.format(f.tauxEquivalentForfait()) + "/h", false), UiKit.pleineLargeur());
-            }
-        } else {
-            recap.addView(UiKit.ligneChiffre(a, "Total des heures", Heures.format(f.totalHeuresCentiemes()), true), UiKit.pleineLargeur());
-            recap.addView(UiKit.ligneChiffre(a, f.proches() ? "Main d'œuvre due" : "Coût de la main d'œuvre", Money.format(cout), true), UiKit.pleineLargeur());
-        }
+        recap.addView(UiKit.ligneChiffre(a, "Total des heures", Heures.format(f.totalHeuresCentiemes()), true), UiKit.pleineLargeur());
+        recap.addView(UiKit.ligneChiffre(a, "Coût de la main d'œuvre", Money.format(cout), true), UiKit.pleineLargeur());
         long budget = f.prevuParPoste().get(Postes.MAIN_OEUVRE);
-        if (!f.proches() && budget > 0) recap.addView(UiKit.ligneChiffre(a, "Budget main d'œuvre", Money.format(budget), false), UiKit.pleineLargeur());
-        if (!f.proches() && f.r.tauxHoraireCentimes <= 0) {
+        if (budget > 0) recap.addView(UiKit.ligneChiffre(a, "Budget main d'œuvre", Money.format(budget), false), UiKit.pleineLargeur());
+        if (f.r.tauxHoraireCentimes <= 0) {
             recap.addView(UiKit.text(a, "Réglez le coût horaire chargé dans les réglages de l'appli pour chiffrer les heures.", 15, UiKit.ENCRE_2, false));
         }
-        if (f.proches() && !forfait && f.c.tauxConvenuCentimes <= 0) {
-            recap.addView(UiKit.text(a, "Réglez le taux horaire convenu dans l'onglet Réglages.", 15, UiKit.ENCRE_2, false));
-        }
         p.contenu.addView(recap, UiKit.pleineLargeur());
-        if (liste.isEmpty()) p.contenu.addView(UiKit.text(a, forfait ? "Aucune heure notée. Facultatif au forfait." : "Aucune heure saisie.", 16, UiKit.ENCRE_2, false));
+        if (liste.isEmpty()) p.contenu.addView(UiKit.text(a, "Aucune heure saisie.", 16, UiKit.ENCRE_2, false));
         for (Chantier.Heure h : liste) {
             String titre = Heures.format(h.heuresCentiemes) + (h.personne.isEmpty() ? "" : " · " + h.personne);
             String sous = (h.date.isEmpty() ? "" : h.date) + (h.note.isEmpty() ? "" : (h.date.isEmpty() ? "" : " · ") + h.note);
-            p.contenu.addView(UiKit.ligneListe(a, titre, sous, forfait ? null : Money.format(f.coutHeure(h)), null,
+            p.contenu.addView(UiKit.ligneListe(a, titre, sous, Money.format(f.coutHeure(h)), null,
                     v -> a.ouvrir(new HeuresScreen(a, chantierId, h.id))), UiKit.pleineLargeur());
         }
         p.ajouterAuPied(UiKit.boutonAction(a, "+ Ajouter des heures", v -> a.ouvrir(new HeuresScreen(a, chantierId, null))));
@@ -300,7 +278,7 @@ public final class GererScreen extends Screen {
     private void travaux(Page p, Finance f) {
         long total = 0;
         for (Chantier.Element el : f.c.elements(Event.TRAVAUX)) if (Finance.accepte(el)) total += f.ttcTravaux(el);
-        p.contenu.addView(UiKit.ligneChiffre(a, f.proches() ? "Travaux convenus" : "Travaux en plus acceptés (TTC)", Money.format(total), true), UiKit.pleineLargeur());
+        p.contenu.addView(UiKit.ligneChiffre(a, "Travaux en plus acceptés" + ttc(f), Money.format(total), true), UiKit.pleineLargeur());
         List<Chantier.Element> liste = f.c.elements(Event.TRAVAUX);
         if (liste.isEmpty()) p.contenu.addView(UiKit.text(a, "Aucun travail pour l'instant.", 16, UiKit.ENCRE_2, false));
         for (Chantier.Element el : liste) {
@@ -316,35 +294,29 @@ public final class GererScreen extends Screen {
     private void facturation(Page p, Finance f) {
         LinearLayout recap = carte();
         com.gregory.truelle.data.RecapFin r = com.gregory.truelle.data.RecapFin.construire(f, false);
-        if (f.proches()) {
-            recap.addView(UiKit.ligneChiffre(a, "Total dû", Money.format(r.totalTtc), true), UiKit.pleineLargeur());
-            recap.addView(UiKit.ligneChiffre(a, "Déjà versé", Money.format(f.encaisse()), false), UiKit.pleineLargeur());
-            recap.addView(UiKit.ligneChiffre(a, "Reste à verser", Money.format(r.totalTtc - f.encaisse()), true), UiKit.pleineLargeur());
-        } else {
-            recap.addView(UiKit.ligneChiffre(a, "Montant du chantier (TTC)", Money.format(r.totalTtc), true), UiKit.pleineLargeur());
-            recap.addView(UiKit.ligneChiffre(a, "Facturé (TTC)", Money.format(f.factureTtc()), false), UiKit.pleineLargeur());
+        {
+            recap.addView(UiKit.ligneChiffre(a, "Montant du chantier" + ttc(f), Money.format(r.totalTtc), true), UiKit.pleineLargeur());
+            recap.addView(UiKit.ligneChiffre(a, "Facturé" + ttc(f), Money.format(f.factureTtc()), false), UiKit.pleineLargeur());
             recap.addView(UiKit.ligneChiffre(a, "Encaissé", Money.format(f.encaisse()), false), UiKit.pleineLargeur());
             if (f.enAttenteDePaiement() > 0) recap.addView(UiKit.ligneChiffre(a, "En attente de paiement", Money.format(f.enAttenteDePaiement()), false), UiKit.pleineLargeur());
             if (f.retenues() > 0) recap.addView(UiKit.ligneChiffre(a, "Retenues de garantie à récupérer", Money.format(f.retenues()), false), UiKit.pleineLargeur());
-            recap.addView(UiKit.ligneChiffre(a, "Reste à facturer (TTC)", Money.format(Math.max(0, r.totalTtc - f.factureTtc())), true), UiKit.pleineLargeur());
+            recap.addView(UiKit.ligneChiffre(a, "Reste à facturer" + ttc(f), Money.format(Math.max(0, r.totalTtc - f.factureTtc())), true), UiKit.pleineLargeur());
         }
         p.contenu.addView(recap, UiKit.pleineLargeur());
 
         List<Chantier.Element> liste = f.c.elements(Event.FACTURATION);
-        if (liste.isEmpty()) p.contenu.addView(UiKit.text(a, f.proches() ? "Aucun versement enregistré." : "Aucune ligne. Ajoutez l'acompte, les situations et le solde.", 16, UiKit.ENCRE_2, false));
+        if (liste.isEmpty()) p.contenu.addView(UiKit.text(a, "Aucune ligne. Ajoutez l'acompte, les situations et le solde.", 16, UiKit.ENCRE_2, false));
         for (Chantier.Element el : liste) {
             String sous = (el.get("numero").isEmpty() ? "" : "Facture n° " + el.get("numero"))
                     + (el.get("date_encaisse").isEmpty() ? (el.get("date_facture").isEmpty() ? "" : " · facturé le " + el.get("date_facture")) : " · payé le " + el.get("date_encaisse"));
             if (f.retenue(el) > 0) sous += " · retenue " + Money.format(f.retenue(el));
-            TextView chip = f.proches()
-                    ? (Chantier.FACT_ENCAISSE.equals(el.get("statut")) ? UiKit.chip(a, "Reçu", UiKit.VERT_FOND, UiKit.VERT) : UiKit.chip(a, "Prévu", UiKit.BLEU_FOND, UiKit.BLEU))
-                    : Libelles.chipFacturation(a, el.get("statut"));
+            TextView chip = Libelles.chipFacturation(a, el.get("statut"));
             p.contenu.addView(UiKit.ligneListe(a, el.get("libelle"), sous.startsWith(" · ") ? sous.substring(3) : sous, Money.format(f.ttcFacture(el)),
                     chip, v -> a.ouvrir(new FacturationScreen(a, chantierId, el.id))), UiKit.pleineLargeur());
         }
-        if (!f.proches()) p.contenu.addView(UiKit.text(a, "Suivi interne : la vraie facture est faite à part, notez ici son numéro pour faire le lien.", 15, UiKit.ENCRE_2, false));
-        p.ajouterAuPied(UiKit.boutonAction(a, f.proches() ? "+ Ajouter un versement" : "+ Ajouter une ligne", v -> a.ouvrir(new FacturationScreen(a, chantierId, null))));
-        p.ajouterAuPied(UiKit.boutonContour(a, f.proches() ? "PDF du décompte" : "PDF du chantier", v -> a.ouvrir(new FinChantierScreen(a, chantierId))));
+        p.contenu.addView(UiKit.text(a, "Suivi interne : la vraie facture est faite à part, notez ici son numéro pour faire le lien.", 15, UiKit.ENCRE_2, false));
+        p.ajouterAuPied(UiKit.boutonAction(a, "+ Ajouter une ligne", v -> a.ouvrir(new FacturationScreen(a, chantierId, null))));
+        p.ajouterAuPied(UiKit.boutonContour(a, "PDF du chantier", v -> a.ouvrir(new FinChantierScreen(a, chantierId))));
     }
 
     // ------------------------------------------------------------- Réglages du chantier
@@ -361,9 +333,6 @@ public final class GererScreen extends Screen {
             rRetenue = c.retenueBp;
             rAvancement = c.avancementBp;
             rBudget = c.budgetMaterielCentimes > 0 ? Money.toInput(c.budgetMaterielCentimes) : "";
-            rTaux = c.tauxConvenuCentimes > 0 ? Money.toInput(c.tauxConvenuCentimes) : "";
-            rForfait = c.forfaitMoCentimes > 0 ? Money.toInput(c.forfaitMoCentimes) : "";
-            rMoMode = c.moAuForfait() ? Chantier.MO_FORFAIT : Chantier.MO_HEURES;
         }
         boolean proches = Chantier.TYPE_PROCHES.equals(rType);
         EditText fTitre = UiKit.champTexte(a, rTitre);
@@ -371,17 +340,11 @@ public final class GererScreen extends Screen {
         EditText fAdresse = UiKit.champ(a, rAdresse, InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_POSTAL_ADDRESS | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
         EditText fBudget = UiKit.champMontant(a, rBudget);
         fBudget.setHint("Facultatif");
-        EditText fForfait = UiKit.champMontant(a, rForfait);
-        fForfait.setHint("Ex. : 800");
-        EditText fTaux = UiKit.champMontant(a, rTaux);
-        fTaux.setHint("Ex. : 20");
         Runnable garder = () -> {
             rTitre = fTitre.getText().toString().trim();
             rClient = fClient.getText().toString().trim();
             rAdresse = fAdresse.getText().toString().trim();
             rBudget = fBudget.getText().toString().trim();
-            rTaux = fTaux.getText().toString().trim();
-            rForfait = fForfait.getText().toString().trim();
         };
 
         // Type de chantier
@@ -393,8 +356,8 @@ public final class GererScreen extends Screen {
             a.remplacer(this);
         }), UiKit.pleineLargeur());
         blocType.addView(UiKit.text(a, proches
-                ? "Pas de TVA ni de bénéfice : achats remboursés, main d'œuvre payée au taux convenu, versements."
-                : "Devis, TVA, budget, bénéfice et facturation.", 15, UiKit.ENCRE_2, false));
+                ? "Fonctionne comme un chantier pro (devis, budget, bénéfice, paiements), mais sans aucune TVA."
+                : "Chantier déclaré : devis, TVA, budget, bénéfice et facturation.", 15, UiKit.ENCRE_2, false));
         p.contenu.addView(carte(blocType), UiKit.pleineLargeur());
 
         // Avancement
@@ -412,23 +375,7 @@ public final class GererScreen extends Screen {
         blocAv.addView(UiKit.text(a, "Par pas de 10 %. Comparé au budget consommé pour repérer un dérapage.", 15, UiKit.ENCRE_2, false));
         p.contenu.addView(carte(blocAv), UiKit.pleineLargeur());
 
-        if (proches) {
-            LinearLayout blocMo = UiKit.colonne(a, 8);
-            blocMo.addView(UiKit.titre(a, "Main d'œuvre", 20));
-            blocMo.addView(UiKit.choix(a, new String[][]{{Chantier.MO_FORFAIT, "Au forfait"}, {Chantier.MO_HEURES, "À l'heure"}}, rMoMode, choisi -> {
-                garder.run();
-                rMoMode = choisi;
-                a.remplacer(this);
-            }), UiKit.pleineLargeur());
-            if (Chantier.MO_FORFAIT.equals(rMoMode)) {
-                blocMo.addView(UiKit.libelle(a, "Montant du forfait", UiKit.euro(a, fForfait)), UiKit.pleineLargeur());
-                blocMo.addView(UiKit.text(a, "Prix fixe pour le travail. Les heures notées restent pour info.", 15, UiKit.ENCRE_2, false));
-            } else {
-                blocMo.addView(UiKit.libelle(a, "Taux horaire convenu (€/h)", UiKit.euro(a, fTaux)), UiKit.pleineLargeur());
-                blocMo.addView(UiKit.text(a, "La main d'œuvre due = heures notées × ce taux.", 15, UiKit.ENCRE_2, false));
-            }
-            p.contenu.addView(carte(blocMo), UiKit.pleineLargeur());
-        } else {
+        {
             // Matériel
             LinearLayout blocMode = UiKit.colonne(a, 8);
             blocMode.addView(UiKit.titre(a, "Matériel", 20));
@@ -451,8 +398,10 @@ public final class GererScreen extends Screen {
 
             // TVA et retenue
             LinearLayout blocTva = UiKit.colonne(a, 8);
-            blocTva.addView(UiKit.titre(a, "TVA et garantie", 20));
-            if (f.r.franchise()) {
+            blocTva.addView(UiKit.titre(a, proches ? "Garantie" : "TVA et garantie", 20));
+            if (proches) {
+                blocTva.addView(UiKit.text(a, "Chantier entre proches : aucune TVA, sur les devis comme sur les paiements.", 15, UiKit.ENCRE_2, false));
+            } else if (f.r.franchise()) {
                 blocTva.addView(UiKit.text(a, "Entreprise en franchise de TVA (réglages de l'appli) : pas de TVA facturée.", 15, UiKit.ENCRE_2, false));
             } else {
                 blocTva.addView(UiKit.blocTva(a, "TVA proposée par défaut sur ce chantier", rTva,
@@ -477,7 +426,7 @@ public final class GererScreen extends Screen {
         }
 
         p.contenu.addView(UiKit.libelle(a, "Travaux", fTitre), UiKit.pleineLargeur());
-        p.contenu.addView(UiKit.libelle(a, proches ? "Pour qui" : "Client", fClient), UiKit.pleineLargeur());
+        p.contenu.addView(UiKit.libelle(a, "Client", fClient), UiKit.pleineLargeur());
         p.contenu.addView(UiKit.libelle(a, "Adresse", fAdresse), UiKit.pleineLargeur());
 
         p.ajouterAuPied(UiKit.boutonAction(a, "Enregistrer", v -> {
@@ -487,9 +436,7 @@ public final class GererScreen extends Screen {
                 return;
             }
             long budget = rBudget.isEmpty() ? 0 : Money.parseCentimes(rBudget);
-            long taux = rTaux.isEmpty() ? 0 : Money.parseCentimes(rTaux);
-            long forfaitMo = rForfait.isEmpty() ? 0 : Money.parseCentimes(rForfait);
-            if (budget < 0 || taux < 0 || forfaitMo < 0) {
+            if (budget < 0) {
                 toast("Montant invalide");
                 return;
             }
@@ -501,10 +448,7 @@ public final class GererScreen extends Screen {
             if (!rMode.equals(c.mode)) data.put("mode", rMode);
             if (rMajoration != c.majorationPct) data.put("majoration_pct", Integer.toString(rMajoration));
             if (budget != c.budgetMaterielCentimes) data.put("budget_materiel_centimes", Long.toString(budget));
-            if (taux != c.tauxConvenuCentimes) data.put("taux_convenu_centimes", Long.toString(taux));
-            if (forfaitMo != c.forfaitMoCentimes) data.put("forfait_mo_centimes", Long.toString(forfaitMo));
-            if (Chantier.TYPE_PROCHES.equals(rType) && !rMoMode.equals(c.moMode)) data.put("mo_mode", rMoMode);
-            if (!f.r.franchise() && rTva != f.tvaDefaut()) data.put("tva_defaut_bp", Integer.toString(rTva));
+            if (!proches && !f.r.franchise() && rTva != f.tvaDefaut()) data.put("tva_defaut_bp", Integer.toString(rTva));
             if (rRetenue != c.retenueBp) data.put("retenue_bp", Integer.toString(rRetenue));
             if (rAvancement != c.avancementBp && rAvancement >= 0) data.put("avancement_bp", Integer.toString(rAvancement));
             if (data.isEmpty() || enregistrer(chantierId, Event.CHANTIER_MODIFIE, data)) {
@@ -514,6 +458,11 @@ public final class GererScreen extends Screen {
                 a.remplacer(this);
             }
         }));
+    }
+
+    /** « (TTC) » seulement quand il y a de la TVA. */
+    private static String ttc(Finance f) {
+        return f.proches() || f.r.franchise() ? "" : " (TTC)";
     }
 
     private View plusMoins(String valeur, Runnable moins, Runnable plus) {

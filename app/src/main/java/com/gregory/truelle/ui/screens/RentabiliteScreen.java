@@ -20,8 +20,8 @@ import java.util.Map;
 
 /**
  * Tableau de bord financier du chantier, recalculé depuis le journal.
- * Pro : budget par poste (prévu / dépensé / engagé / disponible), bénéfice prévu, réel et estimé, facturation.
- * Entre proches : décompte simple (achats à rembourser, main d'œuvre, versements, reste à verser).
+ * Budget par poste (prévu / dépensé / engagé / disponible), bénéfice prévu, réel et estimé, facturation.
+ * Identique pour un chantier entre proches, sans les lignes de TVA.
  */
 public final class RentabiliteScreen extends Screen {
 
@@ -39,41 +39,10 @@ public final class RentabiliteScreen extends Screen {
         p.entete.addView(UiKit.retour(a, "Gérer le chantier", v -> a.retour()));
         if (c == null) return p.racine;
         Finance f = a.finance(c);
-        p.entete.addView(UiKit.titre(a, f.proches() ? "Décompte" : "Budget et bénéfice", 30));
+        p.entete.addView(UiKit.titre(a, "Budget et bénéfice", 30));
         p.entete.addView(UiKit.text(a, c.titre + (c.client.isEmpty() ? "" : " · " + c.client), 17, UiKit.ENCRE_2, false));
-        if (f.proches()) proches(p, f);
-        else pro(p, f);
+        pro(p, f);
         return p.racine;
-    }
-
-    // ------------------------------------------------------------- entre proches
-
-    private void proches(Page p, Finance f) {
-        RecapFin r = RecapFin.construire(f, false);
-        long reste = r.totalTtc - f.encaisse();
-        LinearLayout haut = carte();
-        haut.addView(UiKit.text(a, "Reste à verser", 17, UiKit.ENCRE_2, false));
-        haut.addView(UiKit.titre(a, Money.format(reste), 40));
-        p.contenu.addView(haut, UiKit.pleineLargeur());
-
-        LinearLayout detail = carte();
-        detail.addView(UiKit.titre(a, "Ce qui est dû", 20));
-        for (RecapFin.Section s : r.sections) {
-            detail.addView(UiKit.ligneChiffre(a, s.titre, Money.format(s.total), false), UiKit.pleineLargeur());
-        }
-        if (r.sections.isEmpty()) detail.addView(UiKit.text(a, "Rien pour l'instant : ajoutez les achats et les heures.", 16, UiKit.ENCRE_2, false));
-        detail.addView(UiKit.ligneChiffre(a, "Total", Money.format(r.totalTtc), true), UiKit.pleineLargeur());
-        detail.addView(UiKit.ligneChiffre(a, "Déjà versé", Money.format(f.encaisse()), false), UiKit.pleineLargeur());
-        detail.addView(UiKit.ligneChiffre(a, "Reste à verser", Money.format(reste), true), UiKit.pleineLargeur());
-        p.contenu.addView(detail, UiKit.pleineLargeur());
-
-        if (f.totalHeuresCentiemes() > 0) {
-            String taux = f.c.moAuForfait()
-                    ? (f.tauxEquivalentForfait() > 0 ? ", soit " + Money.format(f.tauxEquivalentForfait()) + "/h avec le forfait" : "")
-                    : f.c.tauxConvenuCentimes > 0 ? " à " + Money.format(f.c.tauxConvenuCentimes) + "/h" : " (taux à régler)";
-            p.contenu.addView(UiKit.text(a, Heures.format(f.totalHeuresCentiemes()) + " de travail" + taux + ".", 16, UiKit.ENCRE_2, false));
-        }
-        p.contenu.addView(UiKit.text(a, "Achats comptés au prix payé, TVA comprise. Les tickets sont joints au PDF du décompte.", 15, UiKit.ENCRE_2, false));
     }
 
     // ------------------------------------------------------------- pro
@@ -89,7 +58,7 @@ public final class RentabiliteScreen extends Screen {
         TextView m = UiKit.titre(a, Money.format(estime.benefice), 40);
         if (estime.benefice < 0) m.setTextColor(UiKit.ROUGE);
         carteB.addView(m);
-        if (estime.venteHt > 0) carteB.addView(UiKit.text(a, Finance.pourcent(estime.beneficeBp()) + " du montant hors TVA", 16, UiKit.ENCRE_2, false));
+        if (estime.venteHt > 0) carteB.addView(UiKit.text(a, Finance.pourcent(estime.beneficeBp()) + (sansTva(f) ? " du montant du chantier" : " du montant hors TVA"), 16, UiKit.ENCRE_2, false));
         TextView etat = etat(f, estime);
         if (etat != null) carteB.addView(etat, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         long conso = f.consommeBp();
@@ -144,9 +113,10 @@ public final class RentabiliteScreen extends Screen {
             tab.addView(ligne3("Frais généraux " + Finance.pourcent(f.r.fraisGenerauxBp), prevu.fraisGeneraux, reel.fraisGeneraux, estime.fraisGeneraux, false), UiKit.pleineLargeur());
         }
         tab.addView(ligne3("Coût de revient", prevu.coutRevient, reel.coutRevient, estime.coutRevient, true), UiKit.pleineLargeur());
-        tab.addView(ligne3("Vendu hors TVA", prevu.venteHt, reel.venteHt, estime.venteHt, false), UiKit.pleineLargeur());
+        tab.addView(ligne3(sansTva(f) ? "Vendu" : "Vendu hors TVA", prevu.venteHt, reel.venteHt, estime.venteHt, false), UiKit.pleineLargeur());
         tab.addView(ligne3("Bénéfice", prevu.benefice, reel.benefice, estime.benefice, true), UiKit.pleineLargeur());
-        tab.addView(UiKit.text(a, f.recupere()
+        tab.addView(UiKit.text(a, f.proches() ? "Sans TVA : coûts au prix payé, vente au prix convenu."
+                : f.recupere()
                 ? "Coûts hors TVA (TVA des achats récupérée)."
                 : "Coûts au prix payé TVA comprise. Vente hors TVA, car la TVA facturée est reversée.", 14, UiKit.ENCRE_2, false));
         p.contenu.addView(tab, UiKit.pleineLargeur());
@@ -155,17 +125,21 @@ public final class RentabiliteScreen extends Screen {
         RecapFin r = RecapFin.construire(f, false);
         LinearLayout fact = carte();
         fact.addView(UiKit.titre(a, "Facturation", 20));
-        fact.addView(UiKit.ligneChiffre(a, "Montant du chantier (TTC)", Money.format(r.totalTtc), false), UiKit.pleineLargeur());
-        fact.addView(UiKit.ligneChiffre(a, "Facturé (TTC)", Money.format(f.factureTtc()), false), UiKit.pleineLargeur());
+        fact.addView(UiKit.ligneChiffre(a, "Montant du chantier" + (sansTva(f) ? "" : " (TTC)"), Money.format(r.totalTtc), false), UiKit.pleineLargeur());
+        fact.addView(UiKit.ligneChiffre(a, "Facturé" + (sansTva(f) ? "" : " (TTC)"), Money.format(f.factureTtc()), false), UiKit.pleineLargeur());
         fact.addView(UiKit.ligneChiffre(a, "Encaissé", Money.format(f.encaisse()), false), UiKit.pleineLargeur());
         fact.addView(UiKit.ligneChiffre(a, "En attente de paiement", Money.format(f.enAttenteDePaiement()), false), UiKit.pleineLargeur());
         if (f.retenues() > 0) fact.addView(UiKit.ligneChiffre(a, "Retenues de garantie", Money.format(f.retenues()), false), UiKit.pleineLargeur());
-        fact.addView(UiKit.ligneChiffre(a, "Reste à facturer (TTC)", Money.format(Math.max(0, r.totalTtc - f.factureTtc())), true), UiKit.pleineLargeur());
-        if (!f.r.franchise()) {
+        fact.addView(UiKit.ligneChiffre(a, "Reste à facturer" + (sansTva(f) ? "" : " (TTC)"), Money.format(Math.max(0, r.totalTtc - f.factureTtc())), true), UiKit.pleineLargeur());
+        if (!sansTva(f)) {
             fact.addView(UiKit.ligneChiffre(a, "TVA collectée (à reverser)", Money.format(f.tvaCollectee()), false), UiKit.pleineLargeur());
             if (f.recupere()) fact.addView(UiKit.ligneChiffre(a, "TVA payée sur les achats", Money.format(f.tvaDeductible()), false), UiKit.pleineLargeur());
         }
         p.contenu.addView(fact, UiKit.pleineLargeur());
+    }
+
+    private static boolean sansTva(Finance f) {
+        return f.proches() || f.r.franchise();
     }
 
     private TextView etat(Finance f, Finance.Synthese estime) {

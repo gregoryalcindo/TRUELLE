@@ -87,7 +87,7 @@ public final class RecapFin {
         }
         if (!devis.lignes.isEmpty()) r.sections.add(devis);
 
-        Section travaux = new Section((f.proches() ? "Travaux convenus" : "Travaux supplémentaires acceptés") + suffixe);
+        Section travaux = new Section("Travaux supplémentaires acceptés" + suffixe);
         for (Chantier.Element el : c.elements(Event.TRAVAUX)) {
             if (!Finance.accepte(el)) continue;
             int bp = sansTva ? 0 : f.tvaTravaux(el);
@@ -100,7 +100,7 @@ public final class RecapFin {
         if (!travaux.lignes.isEmpty()) r.sections.add(travaux);
 
         int bpMat = f.tvaDefaut();
-        Section materiel = new Section(f.proches() ? "Achats et frais avancés (tickets en annexe)" : (c.majorationPct > 0 ? "Matériel refacturé (prix d'achat + " + c.majorationPct + " %)" : "Matériel refacturé au prix d'achat") + suffixe);
+        Section materiel = new Section((c.majorationPct > 0 ? "Matériel refacturé (prix d'achat + " + c.majorationPct + " %)" : "Matériel refacturé au prix d'achat") + suffixe);
         int n = 0;
         for (Chantier.Depense d : c.depenses()) {
             if (!c.estARefacturer(d)) continue;
@@ -116,21 +116,6 @@ public final class RecapFin {
             r.tvaParTaux.merge(bpMat, Tva.tva(ht, bpMat), Long::sum);
         }
         if (!materiel.lignes.isEmpty()) r.sections.add(materiel);
-
-        if (f.proches()) {
-            Section mo = new Section("Main d'œuvre");
-            if (c.moAuForfait()) {
-                if (c.forfaitMoCentimes > 0) {
-                    long hc = f.totalHeuresCentiemes();
-                    mo.ajouter("Main d'œuvre au forfait", hc > 0 ? Heures.format(hc) + " de travail" : "", c.forfaitMoCentimes);
-                }
-            } else for (Chantier.Heure h : c.heures()) {
-                String detail = (h.date.isEmpty() ? "" : h.date + " · ") + Heures.format(h.heuresCentiemes) + " × " + Money.format(f.tauxHeure(h))
-                        + (h.personne.isEmpty() ? "" : " · " + h.personne);
-                mo.ajouter(h.note.isEmpty() ? "Travail" : h.note, detail, f.coutHeure(h));
-            }
-            if (!mo.lignes.isEmpty()) r.sections.add(mo);
-        }
 
         for (Section s : r.sections) r.totalHt += s.total;
         r.tvaParTaux.entrySet().removeIf(e -> e.getValue() == 0 && e.getKey() != 0);

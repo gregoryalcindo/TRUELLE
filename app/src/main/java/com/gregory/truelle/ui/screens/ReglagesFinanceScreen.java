@@ -47,7 +47,7 @@ public final class ReglagesFinanceScreen extends Screen {
         Page p = new Page(a);
         p.entete.addView(UiKit.retour(a, "Réglages", v -> a.retour()));
         p.entete.addView(UiKit.titre(a, "Suivi financier", 30));
-        p.entete.addView(UiKit.text(a, "Pour les chantiers professionnels. Les chantiers entre proches n'utilisent ni TVA ni bénéfice.", 15, UiKit.ENCRE_2, false));
+        p.entete.addView(UiKit.text(a, "S'applique à tous les chantiers. Entre proches, seule la TVA est ignorée.", 15, UiKit.ENCRE_2, false));
 
         EditText fTaux = UiKit.champMontant(a, taux);
         fTaux.setHint("Ex. : 35");

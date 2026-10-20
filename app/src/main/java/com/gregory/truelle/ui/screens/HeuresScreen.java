@@ -28,7 +28,7 @@ import java.util.Map;
 
 /**
  * Heures de main d'œuvre. Pro : coût (heures × taux horaire chargé).
- * Entre proches : main d'œuvre due par le proche (heures × taux convenu).
+ * Même chose pour un chantier entre proches.
  */
 public final class HeuresScreen extends Screen {
 
@@ -79,10 +79,10 @@ public final class HeuresScreen extends Screen {
         fDate.setOnClickListener(v -> choisirDate(fDate));
         EditText fPersonne = UiKit.champ(a, personne, InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
         EditText fTaux = UiKit.champMontant(a, taux);
-        long tauxDefaut = c.entreProches() ? c.tauxConvenuCentimes : fin.r.tauxHoraireCentimes;
+        long tauxDefaut = fin.r.tauxHoraireCentimes;
         fTaux.setHint(tauxDefaut > 0 ? Money.toInput(tauxDefaut) + " (par défaut)" : "Ex. : 35");
         EditText fNote = UiKit.champTexte(a, note);
-        fNote.setHint(c.entreProches() ? "Ex. : pose du carrelage" : "Facultatif");
+        fNote.setHint("Facultatif");
         Runnable garder = () -> {
             heures = fHeures.getText().toString().trim();
             personne = fPersonne.getText().toString().trim();
@@ -96,23 +96,17 @@ public final class HeuresScreen extends Screen {
         duo.addView(UiKit.libelle(a, "Qui", fPersonne), UiKit.poids(1.2f));
         duo.addView(UiKit.libelle(a, "Date", fDate), UiKit.poids(1f));
         p.contenu.addView(duo, UiKit.pleineLargeur());
-        String libTaux = c.entreProches() ? "Taux horaire convenu" : "Coût horaire chargé";
-        boolean forfait = c.entreProches() && c.moAuForfait();
-        if (forfait) {
-            p.contenu.addView(UiKit.text(a, "Main d'œuvre au forfait : les heures sont notées pour info, elles ne changent pas le montant dû.", 15, UiKit.ENCRE_2, false));
-        } else p.contenu.addView(UiKit.libelle(a, libTaux + " (€/h)", UiKit.euro(a, fTaux)), UiKit.pleineLargeur());
-        if (tauxDefaut <= 0 && !forfait) {
-            p.contenu.addView(UiKit.text(a, c.entreProches()
-                    ? "Astuce : réglez le taux convenu dans les réglages du chantier pour ne plus le saisir."
-                    : "Astuce : réglez le coût horaire chargé dans les réglages de l'appli pour ne plus le saisir.", 15, UiKit.ENCRE_2, false));
+        p.contenu.addView(UiKit.libelle(a, "Coût horaire chargé (€/h)", UiKit.euro(a, fTaux)), UiKit.pleineLargeur());
+        if (tauxDefaut <= 0) {
+            p.contenu.addView(UiKit.text(a, "Astuce : réglez le coût horaire chargé dans les réglages de l'appli pour ne plus le saisir.", 15, UiKit.ENCRE_2, false));
         }
-        p.contenu.addView(UiKit.libelle(a, c.entreProches() ? "Travail fait" : "Note", fNote), UiKit.pleineLargeur());
+        p.contenu.addView(UiKit.libelle(a, "Note", fNote), UiKit.pleineLargeur());
 
         long h = Heures.parse(heures);
         long t = taux.isEmpty() ? tauxDefaut : Money.parseCentimes(taux);
-        if (h > 0 && t > 0 && !forfait) {
+        if (h > 0 && t > 0) {
             String total = Heures.format(h) + " × " + Money.format(t) + " = " + Money.format(com.gregory.truelle.data.Tva.arrondi(h * t, 100));
-            p.contenu.addView(UiKit.text(a, (c.entreProches() ? "À payer : " : "Coût : ") + total, 18, UiKit.ENCRE, true));
+            p.contenu.addView(UiKit.text(a, "Coût : " + total, 18, UiKit.ENCRE, true));
         }
 
         p.ajouterAuPied(UiKit.boutonAction(a, "Enregistrer", v -> {

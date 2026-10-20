@@ -75,16 +75,9 @@ public final class PdfFinChantier {
 
     private void recapitulatif(LocalStore store, Chantier ch, RecapFin r, Map<String, String> ent) {
         nouvellePage();
-        boolean proches = ch.entreProches();
-        if (proches) {
-            pied = "Décompte entre proches — achats remboursés au prix payé, tickets en annexe.";
-            enteteEtChantier(ch, ent, "DÉCOMPTE", "DES TRAVAUX");
-        } else {
-            enteteEtChantier(ch, ent, "RÉCAPITULATIF", "DE FIN DE CHANTIER");
-        }
+        enteteEtChantier(ch, ent, "RÉCAPITULATIF", "DE FIN DE CHANTIER");
 
-        sections(r.sections, proches ? "Aucun montant : ajoutez les achats, les heures ou les travaux convenus."
-                : "Aucun montant à récapituler : ajoutez les devis signés, travaux acceptés ou matériel refacturé.");
+        sections(r.sections, "Aucun montant à récapituler : ajoutez les devis signés, travaux acceptés ou matériel refacturé.");
 
         // Totaux : HT, TVA par taux, TTC, déjà réglé, retenue, reste.
         java.util.List<String[]> lignes = new java.util.ArrayList<>();
@@ -96,9 +89,9 @@ public final class PdfFinChantier {
             }
         }
         lignes.add(new String[]{avecTva ? "Total TTC" : "Total", Money.format(r.totalTtc), avecTva ? "g" : ""});
-        if (r.dejaRegle > 0) lignes.add(new String[]{proches ? "Déjà versé" : "Déjà réglé", "− " + Money.format(r.dejaRegle), ""});
+        if (r.dejaRegle > 0) lignes.add(new String[]{"Déjà réglé", "− " + Money.format(r.dejaRegle), ""});
         if (r.retenues > 0) lignes.add(new String[]{"Retenue de garantie", "− " + Money.format(r.retenues), ""});
-        lignes.add(new String[]{proches ? "Reste à verser" : "Reste à payer", Money.format(r.resteAPayer()), "g"});
+        lignes.add(new String[]{"Reste à payer", Money.format(r.resteAPayer()), "g"});
         float hBox = 12 + 20 * lignes.size();
         besoin(hBox + 20);
         float xBox = L - M - 250;
@@ -140,8 +133,7 @@ public final class PdfFinChantier {
         }
 
         besoin(30);
-        texte(proches ? "Montants payés, tickets et factures d'achat en annexe."
-                : "Ce récapitulatif accompagne la facture et ne la remplace pas.", M, y + 6, 8.5f, false, GRIS, L - 2 * M);
+        texte("Ce récapitulatif accompagne la facture et ne la remplace pas.", M, y + 6, 8.5f, false, GRIS, L - 2 * M);
     }
 
     /** Sections de lignes « libellé / détail / montant » avec sous-totaux. */

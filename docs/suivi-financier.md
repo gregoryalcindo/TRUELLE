@@ -96,3 +96,10 @@ Puis : facturé / encaissé / reste à facturer / retenues, et la TVA collectée
 
 Rien ne change : journal sans écrasement, un fichier par saisie, synchro Drive.
 Les nouveaux champs (`ht_centimes`, `tva_bp` en centièmes de %, `poste`, `lignes`, `valide`…) s'ajoutent aux événements existants, et les anciens événements restent lisibles.
+
+## Chantier « entre proches »
+
+Fonctionnement identique à un chantier professionnel : devis en lignes, dépenses, heures, travaux en plus,
+budget par poste, bénéfice, acompte / situation / solde, PDF. Seule différence : aucune TVA (chantier non déclaré).
+Tous les taux sont forcés à 0 %, les coûts sont comptés au prix payé, pas de mention TVA sur le PDF.
+La main d'œuvre au forfait se met comme une ligne du devis (poste « Main d'œuvre »).
