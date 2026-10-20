@@ -67,7 +67,7 @@ public final class Tva {
         return Math.max(0, Math.min(10000, exact));
     }
 
-    static long arrondi(long num, long den) {
+    public static long arrondi(long num, long den) {
         if (den == 0) return 0;
         boolean neg = (num < 0) ^ (den < 0);
         long a = Math.abs(num), b = Math.abs(den);
