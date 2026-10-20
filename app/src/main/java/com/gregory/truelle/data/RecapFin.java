@@ -74,6 +74,14 @@ public final class RecapFin {
 
         boolean sansTva = f.sansTvaFacturee();
         String suffixe = sansTva ? "" : " (HT)";
+        // Prix simple (aucun devis signé) : une seule ligne « Travaux ».
+        if (f.prixSimpleHt() > 0) {
+            Section prix = new Section("Travaux" + suffixe);
+            int bp = f.tvaPrix();
+            prix.ajouter(c.titre, sansTva ? "" : "TVA " + Tva.libelle(bp), f.prixSimpleHt());
+            r.tvaParTaux.merge(bp, Tva.tva(f.prixSimpleHt(), bp), Long::sum);
+            r.sections.add(prix);
+        }
         Section devis = new Section("Devis signés" + suffixe);
         for (Chantier.Element el : c.elements(Event.DEVIS)) {
             if (!Finance.estNotreDevis(el) || !Finance.signe(el)) continue;
@@ -102,7 +110,7 @@ public final class RecapFin {
         if (!travaux.lignes.isEmpty()) r.sections.add(travaux);
 
         int bpMat = f.tvaDefaut();
-        Section materiel = new Section((c.majorationPct > 0 ? "Matériel refacturé (prix d'achat + " + c.majorationPct + " %)" : "Matériel refacturé au prix d'achat") + suffixe);
+        Section materiel = new Section(c.refacturerCategories != null ? "Dépenses refacturées" + (c.majorationPct > 0 ? " (prix d'achat + " + c.majorationPct + " %)" : " au prix d'achat") + suffixe : (c.majorationPct > 0 ? "Matériel refacturé (prix d'achat + " + c.majorationPct + " %)" : "Matériel refacturé au prix d'achat") + suffixe);
         int n = 0;
         for (Chantier.Depense d : c.depenses()) {
             if (!c.estARefacturer(d)) continue;

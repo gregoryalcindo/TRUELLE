@@ -81,9 +81,69 @@ public final class FinChantierScreen extends Screen {
             p.contenu.addView(alerte, UiKit.pleineLargeur());
         }
 
+        View choix = blocDepensesEnvoyees(c);
+        if (choix != null) p.contenu.addView(choix, UiKit.pleineLargeur());
+
         p.contenu.addView(blocRecap(c, entreprise), UiKit.pleineLargeur());
         p.contenu.addView(blocFactures(c, entreprise), UiKit.pleineLargeur());
         return p.racine;
+    }
+
+    // ------------------------------------------------------------ 0. quelles dépenses partent au client
+
+    /**
+     * Choix par catégorie des dépenses refacturées au client (matériel, location, repas, carburant…).
+     * Chaque case cochée ajoute ces tickets au récapitulatif, avec leurs factures en annexe.
+     */
+    private View blocDepensesEnvoyees(Chantier c) {
+        java.util.Map<String, long[]> parCat = new java.util.LinkedHashMap<>();
+        for (String[] cat : com.gregory.truelle.data.Categories.TOUTES) parCat.put(cat[0], new long[]{0, 0});
+        for (Chantier.Depense d : c.depenses()) {
+            long[] t = parCat.get(d.categorie);
+            if (t == null) continue;
+            t[0] += d.montantCentimes;
+            t[1]++;
+        }
+        boolean rien = true;
+        for (long[] t : parCat.values()) if (t[1] > 0) rien = false;
+        if (rien) return null;
+
+        LinearLayout bloc = carte();
+        bloc.addView(UiKit.titre(a, "Ce qui part au client", 22));
+        bloc.addView(UiKit.text(a, "Cochez les dépenses que le client vous rembourse. Elles s'ajoutent au récapitulatif, avec les tickets en annexe.", 15, UiKit.ENCRE_2, false));
+        for (String[] cat : com.gregory.truelle.data.Categories.TOUTES) {
+            long[] t = parCat.get(cat[0]);
+            if (t[1] == 0) continue;
+            boolean coche = false;
+            for (Chantier.Depense d : c.depenses()) if (cat[0].equals(d.categorie) && c.estARefacturer(d)) coche = true;
+            final boolean etait = coche;
+            LinearLayout row = UiKit.ligne(a, 10);
+            row.setMinimumHeight(dp(52));
+            row.addView(Blocs.caseTache(a, coche, v -> basculerCategorie(c, cat[0], !etait)));
+            row.addView(UiKit.text(a, cat[1] + " · " + t[1] + (t[1] > 1 ? " tickets" : " ticket"), 17, UiKit.ENCRE, coche), UiKit.poids(1));
+            row.addView(UiKit.text(a, Money.format(t[0]), 17, coche ? UiKit.ENCRE : UiKit.ENCRE_2, coche));
+            row.setClickable(true);
+            row.setOnClickListener(v -> basculerCategorie(c, cat[0], !etait));
+            bloc.addView(row, UiKit.pleineLargeur());
+        }
+        return bloc;
+    }
+
+    private void basculerCategorie(Chantier c, String categorie, boolean inclure) {
+        java.util.Set<String> choisies = new java.util.LinkedHashSet<>();
+        for (String[] cat : com.gregory.truelle.data.Categories.TOUTES) {
+            for (Chantier.Depense d : c.depenses()) {
+                if (cat[0].equals(d.categorie) && c.estARefacturer(d)) {
+                    choisies.add(cat[0]);
+                    break;
+                }
+            }
+        }
+        if (inclure) choisies.add(categorie);
+        else choisies.remove(categorie);
+        java.util.Map<String, String> data = new java.util.LinkedHashMap<>();
+        data.put("refacturer_categories", choisies.isEmpty() ? "aucune" : String.join(",", choisies));
+        if (enregistrer(chantierId, com.gregory.truelle.data.Event.CHANTIER_MODIFIE, data)) a.remplacer(this);
     }
 
     // ------------------------------------------------------------ 1. récapitulatif client

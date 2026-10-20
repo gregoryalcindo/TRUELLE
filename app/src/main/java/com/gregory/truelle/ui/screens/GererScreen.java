@@ -95,7 +95,7 @@ public final class GererScreen extends Screen {
             case DEVIS: return "Devis";
             case HEURES: return "Main d'œuvre";
             case TRAVAUX: return "Travaux en plus";
-            case FACTURATION: return "Factures et paiements";
+            case FACTURATION: return "Paiements";
             case REGLAGES: return "Réglages du chantier";
             case NOTES: return "Notes";
             case TACHES: return "Tâches";
@@ -354,7 +354,7 @@ public final class GererScreen extends Screen {
         p.contenu.addView(recap, UiKit.pleineLargeur());
 
         List<Chantier.Element> liste = f.c.elements(Event.FACTURATION);
-        if (liste.isEmpty()) p.contenu.addView(UiKit.text(a, "Aucune ligne. Ajoutez l'acompte, les situations et le solde.", 16, UiKit.ENCRE_2, false));
+        if (liste.isEmpty()) p.contenu.addView(UiKit.text(a, "Aucun paiement pour l'instant. Touchez « Le client m'a payé » à chaque somme reçue.", 16, UiKit.ENCRE_2, false));
         for (Chantier.Element el : liste) {
             String sous = (el.get("numero").isEmpty() ? "" : "Facture n° " + el.get("numero"))
                     + (el.get("date_encaisse").isEmpty() ? (el.get("date_facture").isEmpty() ? "" : " · facturé le " + el.get("date_facture")) : " · payé le " + el.get("date_encaisse"));
@@ -364,8 +364,8 @@ public final class GererScreen extends Screen {
                     chip, v -> a.ouvrir(new FacturationScreen(a, chantierId, el.id))), UiKit.pleineLargeur());
         }
         p.contenu.addView(UiKit.text(a, "Suivi interne : la vraie facture est faite à part, notez ici son numéro pour faire le lien.", 15, UiKit.ENCRE_2, false));
-        p.ajouterAuPied(UiKit.boutonAction(a, "+ Ajouter une ligne", v -> a.ouvrir(new FacturationScreen(a, chantierId, null))));
-        p.ajouterAuPied(UiKit.boutonContour(a, "PDF du chantier", v -> a.ouvrir(new FinChantierScreen(a, chantierId))));
+        p.ajouterAuPied(UiKit.boutonAction(a, "Le client m'a payé", v -> a.ouvrir(new PaiementScreen(a, chantierId))));
+        p.ajouterAuPied(UiKit.boutonContour(a, "Facture détaillée (acompte, avancement…)", v -> a.ouvrir(new FacturationScreen(a, chantierId, null))));
     }
 
     // ------------------------------------------------------------- Réglages du chantier
@@ -487,7 +487,6 @@ public final class GererScreen extends Screen {
                 a.remplacer(this);
             }), UiKit.pleineLargeur());
             p.contenu.addView(carte(blocTva), UiKit.pleineLargeur());
-            p.contenu.addView(UiKit.libelle(a, "Budget matériaux (si les devis n'ont pas de coût prévu)", UiKit.euro(a, fBudget)), UiKit.pleineLargeur());
         }
 
         p.contenu.addView(UiKit.libelle(a, "Travaux", fTitre), UiKit.pleineLargeur());

@@ -113,3 +113,13 @@ La main d'œuvre au forfait se met comme une ligne du devis (poste « Main d'œu
 - Franchise : « TVA non applicable, art. 293 B du CGI » (référence admise jusqu'au 30 juin 2028 après le passage au CIBS le 1er janvier 2027).
 - Écran PDF : « À reporter sur votre facture » (mentions TVA) avec bouton Copier.
 - Carnet : alertes ajoutées — dépenses sans facture, heures sans coût horaire, travaux en plus sans accord depuis 7 jours, retenue de garantie à récupérer, chantier terminé avec reste à facturer.
+
+## La base simple et les tiroirs (octobre 2026)
+
+Un chantier fonctionne avec la base seule : **Prix** (ce que le client paie), **Coût prévu** (environ), **Dépenses** (tickets), **Paiements** (« Le client m'a payé »).
+Chaque caisse s'ouvre sur un tiroir plus détaillé, jamais obligatoire :
+- Prix → « Détailler en lignes » : devis en brouillon pré-rempli ; une fois signé, il remplace le prix simple (pas de double compte).
+- Coût prévu → « Répartir » : un montant par poste ; le montant simple s'ajoute au détail des lignes de devis.
+- Paiements → « Facture détaillée » : acompte, avancement, solde, retenue.
+- Fin de chantier → « Ce qui part au client » : choix des catégories de dépenses refacturées (matériel, repas, carburant…).
+Les calculs prennent toujours le niveau le plus détaillé rempli.

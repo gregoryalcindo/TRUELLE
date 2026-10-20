@@ -44,6 +44,20 @@ public final class Chantier {
     public String couverture = "";
     /** Vrai si nous sommes sous-traitant d'une entreprise du bâtiment : factures hors taxes (autoliquidation). */
     public boolean autoliquidation;
+
+    // ---- La base simple d'un chantier (les tiroirs plus détaillés sont facultatifs)
+    /** Prix convenu avec le client, TTC (0 = pas encore). Ignoré dès qu'un devis est signé. */
+    public long prixCentimes = 0;
+    /** TVA du prix simple (points de base), -1 = celle du chantier. */
+    public int prixTvaBp = -1;
+    /** « Je prévois environ … » : coût total prévu, en un seul montant. */
+    public long coutPrevuCentimes = 0;
+    /** Coût prévu réparti par poste (tiroir « Répartir »), en plus des coûts des lignes de devis. */
+    public final java.util.Map<String, Long> prevuPostes = new java.util.LinkedHashMap<>();
+    /** « oui » quand le client a signé la mention de TVA réduite pour le prix simple. */
+    public String certification = "";
+    /** Catégories de dépenses refacturées au client (choix de fin de chantier) ; null = selon le mode. */
+    public java.util.Set<String> refacturerCategories = null;
     /** Avancement des travaux déclaré (points de base, 0 à 10000), -1 = non renseigné. */
     public int avancementBp = -1;
     public String statut = A_DEMARRER;
@@ -274,6 +288,18 @@ public final class Chantier {
         if (e.get("telephone") != null) telephone = e.get("telephone");
         if (e.get("couverture") != null) couverture = e.get("couverture");
         if (e.get("autoliquidation") != null) autoliquidation = "oui".equals(e.get("autoliquidation"));
+        if (e.get("prix_centimes") != null) prixCentimes = Math.max(0, parseLong(e.get("prix_centimes"), 0));
+        if (e.get("prix_tva_bp") != null) prixTvaBp = (int) parseLong(e.get("prix_tva_bp"), -1);
+        if (e.get("cout_prevu_centimes") != null) coutPrevuCentimes = Math.max(0, parseLong(e.get("cout_prevu_centimes"), 0));
+        if (e.get("certification") != null) certification = e.get("certification");
+        for (String[] p : Postes.TOUS) {
+            String v = e.get("prevu_" + p[0] + "_centimes");
+            if (v != null) prevuPostes.put(p[0], Math.max(0, parseLong(v, 0)));
+        }
+        if (e.get("refacturer_categories") != null) {
+            refacturerCategories = new java.util.LinkedHashSet<>();
+            for (String x : e.get("refacturer_categories").split(",")) if (!x.trim().isEmpty() && !"aucune".equals(x.trim())) refacturerCategories.add(x.trim());
+        }
         if (e.get("client") != null) client = e.get("client");
         if (e.get("adresse") != null) adresse = e.get("adresse");
         if (e.get("mode") != null) mode = MODE_REEL.equals(e.get("mode")) ? MODE_REEL : MODE_FORFAIT;
@@ -415,6 +441,7 @@ public final class Chantier {
     public boolean estARefacturer(Depense d) {
         if ("oui".equals(d.refacturer)) return true;
         if ("non".equals(d.refacturer)) return false;
+        if (refacturerCategories != null) return refacturerCategories.contains(d.categorie);
         return MODE_REEL.equals(mode);
     }
 

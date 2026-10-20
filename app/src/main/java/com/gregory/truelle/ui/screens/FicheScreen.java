@@ -86,6 +86,12 @@ public final class FicheScreen extends Screen {
         corps.addView(carteArgent(c, f), UiKit.pleineLargeur());
         corps.addView(actionsRapides(c), UiKit.pleineLargeur());
 
+        // L'argent : la base (quatre caisses), juste sous les actions.
+        corps.addView(Blocs.titreSection(a, "L'argent", null, null), UiKit.pleineLargeur());
+        View suivre = aSuivre(c, f);
+        if (suivre != null) corps.addView(suivre, UiKit.pleineLargeur());
+        corps.addView(sections(c, f), UiKit.pleineLargeur());
+
         // À faire
         List<Chantier.Element> taches = c.taches();
         int faites = c.tachesFaites();
@@ -114,10 +120,6 @@ public final class FicheScreen extends Screen {
         corps.addView(Blocs.titreSection(a, "Photos", photos.isEmpty() ? null : "Avant · Pendant · Après",
                 photos.isEmpty() ? null : v -> a.ouvrir(new PhotosScreen(a, c.id))), UiKit.pleineLargeur());
         corps.addView(bandePhotos(c, photos), UiKit.pleineLargeur());
-
-        // Argent et documents
-        corps.addView(Blocs.titreSection(a, "Argent et documents", null, null), UiKit.pleineLargeur());
-        corps.addView(sections(c, f), UiKit.pleineLargeur());
 
         return racine;
     }
@@ -293,7 +295,7 @@ public final class FicheScreen extends Screen {
         } else {
             long depense = Finance.somme(f.reelParPoste());
             if (depense > 0) carte.addView(UiKit.ligneChiffre(a, "Dépensé à ce jour", Money.formatCourt(depense), false), UiKit.pleineLargeur());
-            carte.addView(UiKit.text(a, "Bénéfice pas encore estimable : indiquez le coût prévu sur les lignes du devis signé.", 14, UiKit.ENCRE_2, false));
+            carte.addView(UiKit.text(a, "Bénéfice pas encore estimable : indiquez le coût prévu, juste en dessous (L'argent → Coût prévu).", 14, UiKit.ENCRE_2, false));
         }
         carte.setClickable(true);
         carte.setContentDescription("Budget et bénéfice, voir le détail");
@@ -392,54 +394,75 @@ public final class FicheScreen extends Screen {
 
     // ------------------------------------------------------------- argent et documents
 
+    /**
+     * Le tiroir « Argent » : quatre caisses (Prix, Coût prévu, Dépenses, Paiements), toujours là.
+     * Les autres rangées n'apparaissent que si elles contiennent quelque chose.
+     */
     private View sections(Chantier c, Finance f) {
         Blocs.Groupe g = new Blocs.Groupe(a);
         boolean sansTva = f.sansTvaFacturee();
 
-        int nousSignes = 0, sousTraitants = 0;
+        // --- Caisse Prix : prix simple, ou devis dès qu'il y en a un de signé.
+        int nousSignes = 0, sousTraitants = 0, brouillons = 0;
         long devisTtc = 0;
+        boolean mentionManquante = f.certificationManquantePrix();
         for (Chantier.Element d : c.elements(Event.DEVIS)) {
             if (Finance.estNotreDevis(d)) {
                 if (Finance.signe(d)) {
                     nousSignes++;
                     devisTtc += f.totaux(d).ttc;
-                }
+                } else if (!Chantier.DEVIS_REFUSE.equals(d.get("statut")) && !Chantier.DEVIS_REMPLACE.equals(d.get("statut"))) brouillons++;
             } else sousTraitants++;
+            if (f.certificationManquante(d)) mentionManquante = true;
         }
-        int nDevis = c.elements(Event.DEVIS).size();
-        boolean mentionManquante = false;
-        for (Chantier.Element d : c.elements(Event.DEVIS)) if (f.certificationManquante(d)) mentionManquante = true;
-        CharSequence sousDevis = nDevis == 0 ? "Aucun devis" : nousSignes + " signé" + (nousSignes > 1 ? "s" : "")
-                + (sousTraitants > 0 ? " · " + sousTraitants + " sous-traitant" + (sousTraitants > 1 ? "s" : "") : "");
-        if (mentionManquante) {
-            android.text.SpannableStringBuilder sb = new android.text.SpannableStringBuilder(sousDevis + " · ");
-            int debut = sb.length();
-            sb.append("mention TVA à faire signer");
-            sb.setSpan(new android.text.style.ForegroundColorSpan(UiKit.ROUGE), debut, sb.length(), 0);
-            sb.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD), debut, sb.length(), 0);
-            sousDevis = sb;
+        if (f.prixDetaille()) {
+            CharSequence sous = nousSignes + " devis signé" + (nousSignes > 1 ? "s" : "") + (brouillons > 0 ? " · " + brouillons + " en cours" : "");
+            if (mentionManquante) sous = alerteDans(sous, "mention TVA à faire signer", UiKit.ROUGE);
+            g.ajouter(Blocs.rangee(a, null, sansTva ? "Prix" : "Prix (TTC)", sous, Money.formatCourt(devisTtc), true,
+                    v -> a.ouvrir(new GererScreen(a, c.id, GererScreen.DEVIS))));
+        } else {
+            CharSequence sous = c.prixCentimes <= 0 ? "Combien le client paie ?"
+                    : (sansTva ? "Sans TVA" : "TVA " + com.gregory.truelle.data.Tva.libelle(f.tvaPrix())) + (brouillons > 0 ? " · devis en préparation" : "");
+            if (mentionManquante) sous = alerteDans(sous, "mention TVA à faire signer", UiKit.ROUGE);
+            g.ajouter(Blocs.rangee(a, null, sansTva ? "Prix" : "Prix (TTC)", sous, c.prixCentimes > 0 ? Money.formatCourt(c.prixCentimes) : "À indiquer", true,
+                    v -> a.ouvrir(new PrixScreen(a, c.id))));
+            if (brouillons > 0) {
+                g.ajouter(Blocs.rangee(a, null, "Devis en préparation", "Le prix ci-dessus compte tant qu'il n'est pas signé", null, true,
+                        v -> a.ouvrir(new GererScreen(a, c.id, GererScreen.DEVIS))));
+            }
         }
-        g.ajouter(Blocs.rangee(a, null, sansTva ? "Devis" : "Devis (TTC)", sousDevis,
-                devisTtc > 0 ? Money.formatCourt(devisTtc) : null, true, v -> a.ouvrir(new GererScreen(a, c.id, GererScreen.DEVIS))));
 
+        // --- Caisse Coût prévu
+        long budget = f.budgetTotal();
+        boolean reparti = false;
+        for (Long v : c.prevuPostes.values()) if (v > 0) reparti = true;
+        g.ajouter(Blocs.rangee(a, null, "Coût prévu", budget <= 0 ? "Combien ça devrait vous coûter ?" : reparti || f.budgetDetaille() ? "Réparti par poste" : "Environ",
+                budget > 0 ? Money.formatCourt(budget) : "À estimer", true, v -> a.ouvrir(new CoutScreen(a, c.id))));
+
+        // --- Caisse Dépenses
         int nDep = c.depenses().size(), aVerif = f.aVerifier();
-        CharSequence sousDep = nDep == 0 ? "Aucun ticket" : nDep + (nDep > 1 ? " tickets" : " ticket");
-        if (aVerif > 0) {
-            android.text.SpannableStringBuilder sb = new android.text.SpannableStringBuilder(sousDep + " · ");
-            int debut = sb.length();
-            sb.append(aVerif + " à vérifier");
-            sb.setSpan(new android.text.style.ForegroundColorSpan(UiKit.AMBRE), debut, sb.length(), 0);
-            sb.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD), debut, sb.length(), 0);
-            sousDep = sb;
-        }
+        CharSequence sousDep = nDep == 0 ? "Photo de chaque ticket" : nDep + (nDep > 1 ? " tickets" : " ticket");
+        if (aVerif > 0) sousDep = alerteDans(sousDep, aVerif + " à vérifier", UiKit.AMBRE);
         g.ajouter(Blocs.rangee(a, null, sansTva ? "Dépenses" : "Dépenses (TTC)", sousDep, nDep > 0 ? Money.formatCourt(c.totalDepensesCentimes()) : null, true,
                 v -> a.ouvrir(new GererScreen(a, c.id, GererScreen.DEPENSES))));
 
-        long cout = 0;
-        for (Chantier.Heure h : c.heures()) cout += f.coutHeure(h);
-        g.ajouter(Blocs.rangee(a, null, "Main d'œuvre", c.heures().isEmpty() ? "Aucune heure saisie" : Heures.format(f.totalHeuresCentiemes()) + " saisies",
-                cout > 0 ? Money.formatCourt(cout) : null, true, v -> a.ouvrir(new GererScreen(a, c.id, GererScreen.HEURES))));
+        // --- Caisse Paiements
+        long total = com.gregory.truelle.data.RecapFin.construire(f, false).totalTtc;
+        long encaisse = f.encaisse();
+        long reste = Math.max(0, total - encaisse - f.retenues());
+        String sousPaie = encaisse == 0 ? (total > 0 ? "Rien reçu · " + Money.formatCourt(total) + " à recevoir" : "Rien reçu")
+                : "Reçu " + Money.formatCourt(encaisse) + (reste > 0 ? " · reste " + Money.formatCourt(reste) : " · tout est payé");
+        g.ajouter(Blocs.rangee(a, null, "Paiements", sousPaie,
+                total > 0 && encaisse > 0 ? Math.min(100, Math.round(encaisse * 100.0 / total)) + " %" : null, true,
+                v -> a.ouvrir(c.elements(Event.FACTURATION).isEmpty() ? new PaiementScreen(a, c.id) : new GererScreen(a, c.id, GererScreen.FACTURATION))));
 
+        // --- Ce qui n'apparaît que s'il y a quelque chose dedans.
+        if (!c.heures().isEmpty()) {
+            long cout = 0;
+            for (Chantier.Heure h : c.heures()) cout += f.coutHeure(h);
+            g.ajouter(Blocs.rangee(a, null, "Main d'œuvre", Heures.format(f.totalHeuresCentiemes()) + " saisies",
+                    cout > 0 ? Money.formatCourt(cout) : null, true, v -> a.ouvrir(new GererScreen(a, c.id, GererScreen.HEURES))));
+        }
         int acc = 0, att = 0;
         long trav = 0;
         for (Chantier.Element t : c.elements(Event.TRAVAUX)) {
@@ -448,25 +471,65 @@ public final class FicheScreen extends Screen {
                 trav += f.ttcTravaux(t);
             } else if (Chantier.TRAVAUX_PROPOSE.equals(t.get("statut"))) att++;
         }
-        g.ajouter(Blocs.rangee(a, null, "Travaux en plus", acc + att == 0 ? "Aucun" : acc + " accepté" + (acc > 1 ? "s" : "") + (att > 0 ? " · " + att + " en attente" : ""),
-                trav > 0 ? Money.formatCourt(trav) : null, true, v -> a.ouvrir(new GererScreen(a, c.id, GererScreen.TRAVAUX))));
-
-        long total = com.gregory.truelle.data.RecapFin.construire(f, false).totalTtc;
-        long encaisse = f.encaisse();
-        String sousFact = c.elements(Event.FACTURATION).isEmpty() ? "Rien de facturé" :
-                "Payé " + Money.formatCourt(encaisse) + " · reste " + Money.formatCourt(Math.max(0, total - encaisse - f.retenues()));
-        g.ajouter(Blocs.rangee(a, null, "Factures et paiements", sousFact,
-                total > 0 ? Math.min(100, Math.round(encaisse * 100.0 / total)) + " % payé" : null, true,
-                v -> a.ouvrir(new GererScreen(a, c.id, GererScreen.FACTURATION))));
-
-        g.ajouter(Blocs.rangee(a, null, "Documents PDF", "Récapitulatif client" + (sansTva ? " sans TVA" : "") + " · dossier des factures",
-                null, true, v -> a.ouvrir(new FinChantierScreen(a, c.id))));
-
+        if (acc + att > 0) {
+            g.ajouter(Blocs.rangee(a, null, "Travaux en plus", acc + " accepté" + (acc > 1 ? "s" : "") + (att > 0 ? " · " + att + " en attente" : ""),
+                    trav > 0 ? Money.formatCourt(trav) : null, true, v -> a.ouvrir(new GererScreen(a, c.id, GererScreen.TRAVAUX))));
+        }
+        if (sousTraitants > 0 && !f.prixDetaille()) {
+            g.ajouter(Blocs.rangee(a, null, "Sous-traitants", sousTraitants + " devis", null, true,
+                    v -> a.ouvrir(new GererScreen(a, c.id, GererScreen.DEVIS))));
+        }
         int nNotes = 0;
         for (Chantier.Ajout aj : c.derniersAjouts()) if (Event.NOTE.equals(aj.type)) nNotes++;
-        g.ajouter(Blocs.rangee(a, null, "Notes", nNotes == 0 ? "Aucune note" : nNotes + (nNotes > 1 ? " notes" : " note"), null, true,
-                v -> a.ouvrir(new GererScreen(a, c.id, GererScreen.NOTES))));
+        if (nNotes > 0) {
+            g.ajouter(Blocs.rangee(a, null, "Notes", nNotes + (nNotes > 1 ? " notes" : " note"), null, true,
+                    v -> a.ouvrir(new GererScreen(a, c.id, GererScreen.NOTES))));
+        }
+        g.ajouter(Blocs.rangee(a, null, "Envoyer au client", "Récapitulatif PDF et factures des dépenses", null, true,
+                v -> a.ouvrir(new FinChantierScreen(a, c.id))));
         return g.vue;
+    }
+
+    /** « Pour bien suivre ce chantier » : la prochaine étape, tant que la base n'est pas complète. */
+    private View aSuivre(Chantier c, Finance f) {
+        boolean prix = f.prixDetaille() || c.prixCentimes > 0;
+        boolean cout = f.budgetTotal() > 0;
+        boolean mentionOk = !f.certificationManquantePrix();
+        for (Chantier.Element d : c.elements(Event.DEVIS)) if (f.certificationManquante(d)) mentionOk = false;
+        if (prix && cout && mentionOk) return null;
+        LinearLayout carte = UiKit.colonne(a, 0);
+        carte.setPadding(dp(16), dp(14), dp(16), dp(10));
+        carte.setBackground(UiKit.rounded(UiKit.PIERRE, dp(18), 0, 0));
+        carte.addView(UiKit.text(a, "Pour bien suivre ce chantier", 16, UiKit.ENCRE, true));
+        carte.addView(etape(prix, "Le prix convenu avec le client", v -> a.ouvrir(f.prixDetaille() ? new GererScreen(a, c.id, GererScreen.DEVIS) : new PrixScreen(a, c.id))));
+        carte.addView(etape(cout, "Ce que ça devrait vous coûter (environ)", v -> a.ouvrir(new CoutScreen(a, c.id))));
+        if (!mentionOk) carte.addView(etape(false, "La mention TVA signée par le client", v -> a.ouvrir(f.prixDetaille() ? new GererScreen(a, c.id, GererScreen.DEVIS) : new PrixScreen(a, c.id))));
+        return carte;
+    }
+
+    private View etape(boolean fait, String texte, View.OnClickListener l) {
+        LinearLayout row = UiKit.ligne(a, 10);
+        row.setMinimumHeight(dp(44));
+        View rond = Blocs.caseTache(a, fait, fait ? null : l);
+        row.addView(rond);
+        android.widget.TextView t = UiKit.text(a, texte, 16, fait ? UiKit.ENCRE_2 : UiKit.ENCRE, !fait);
+        if (fait) t.setPaintFlags(t.getPaintFlags() | android.graphics.Paint.STRIKE_THRU_TEXT_FLAG);
+        row.addView(t, UiKit.poids(1));
+        if (!fait) {
+            row.addView(UiKit.icone(a, R.drawable.ic_chevron, UiKit.ENCRE_2, 20));
+            row.setClickable(true);
+            row.setOnClickListener(l);
+        }
+        return row;
+    }
+
+    private static CharSequence alerteDans(CharSequence debut, String alerte, int couleur) {
+        android.text.SpannableStringBuilder sb = new android.text.SpannableStringBuilder(debut + " · ");
+        int d = sb.length();
+        sb.append(alerte);
+        sb.setSpan(new android.text.style.ForegroundColorSpan(couleur), d, sb.length(), 0);
+        sb.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD), d, sb.length(), 0);
+        return sb;
     }
 
     /** « Aujourd'hui », « Hier », ou la date. */

@@ -91,6 +91,11 @@ public final class Carnet {
                 }
             }
 
+            if (f.certificationManquantePrix()) {
+                k.alertes.add(new Alerte(c, PROBLEME, "TVA réduite : mention à faire signer",
+                        c.titre + " · sans elle, le taux normal (20 %) s'applique", null, 0));
+            }
+
             // Tickets sans photo de la facture : la preuve de la dépense manque.
             int sansJustif = 0;
             for (Chantier.Depense d : c.depenses()) if (d.fichier.isEmpty()) sansJustif++;

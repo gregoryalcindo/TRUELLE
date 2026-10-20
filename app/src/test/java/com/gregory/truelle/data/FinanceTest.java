@@ -250,4 +250,47 @@ public class FinanceTest {
         r.margeViseeBp = 3000;
         assertEquals(1729, r.prixConseille(1000));               // 10 € × 1,33 × 1,30 = 17,29 €
     }
+
+    @Test
+    public void chantierSimple_prixCoutPrevuEtDepensesChoisies() {
+        add("c", Event.CHANTIER_CREE, "titre", "Mur", "prix_centimes", "100000", "prix_tva_bp", "1000", "cout_prevu_centimes", "50000");
+        add("e1", Event.DEPENSE, "montant_centimes", "48000", "categorie", "materiel", "fichier", "Dépenses/a.pdf");
+        add("e2", Event.DEPENSE, "montant_centimes", "1500", "categorie", "repas", "fichier", "Dépenses/b.pdf");
+        Finance f = new Finance(Chantier.replay("c1", ev), new Reglages());
+        assertEquals(90909, f.prixSimpleHt());                   // 1 000 € TTC à 10 %
+        assertEquals(100000, f.prixSimpleTtc());
+        assertEquals(50000, f.budgetTotal());                     // « je prévois environ 500 € »
+        assertFalse(f.budgetDetaille());
+        assertEquals(9900, f.consommeBp());                       // 495 € dépensés sur 500
+        assertEquals(90909 - 50000, f.prevision().benefice);      // rien n'est refacturé (mode forfait)
+        assertTrue(f.certificationManquantePrix());               // 10 % et 1 000 € TTC : mention à signer
+
+        // Fin de chantier : on refacture le matériel, pas les repas.
+        add("m", Event.CHANTIER_MODIFIE, "refacturer_categories", "materiel", "certification", "oui");
+        Finance f2 = new Finance(Chantier.replay("c1", ev), new Reglages());
+        assertTrue(f2.c.estARefacturer(f2.c.depense("e1")));
+        assertFalse(f2.c.estARefacturer(f2.c.depense("e2")));
+        assertEquals(90909 + 48000, f2.venduHt());
+        assertFalse(f2.certificationManquantePrix());
+        RecapFin r = RecapFin.construire(f2, false);
+        assertEquals("Travaux (HT)", r.sections.get(0).titre);
+        assertEquals(1, r.sections.get(1).lignes.size());
+
+        // Répartir le coût prévu : le montant simple passe dans les postes.
+        add("r", Event.CHANTIER_MODIFIE, "prevu_materiaux_centimes", "45000", "prevu_main_oeuvre_centimes", "20000", "cout_prevu_centimes", "0");
+        Finance f3 = new Finance(Chantier.replay("c1", ev), new Reglages());
+        assertTrue(f3.budgetDetaille());
+        assertEquals(65000, f3.budgetTotal());
+
+        // Détailler le prix en devis signé : le devis remplace le prix simple (pas de double compte).
+        add("d", Event.DEVIS, "sorte", "nous", "statut", "signe", "lignes", Ligne.encoder(Arrays.asList(f3.lignePrix())));
+        Finance f4 = new Finance(Chantier.replay("c1", ev), new Reglages());
+        assertTrue(f4.prixDetaille());
+        assertEquals(0, f4.prixSimpleHt());
+        assertEquals(90909, f4.devisSignesHt());
+
+        // « aucune » : rien n'est refacturé.
+        add("n", Event.CHANTIER_MODIFIE, "refacturer_categories", "aucune");
+        assertFalse(Chantier.replay("c1", ev).estARefacturer(Chantier.replay("c1", ev).depense("e1")));
+    }
 }

@@ -244,9 +244,55 @@ public final class Finance {
         return t;
     }
 
+    // ---------------------------------------------------------------- prix simple
+
+    /** Vrai dès qu'un de nos devis est signé : il remplace le prix simple (niveau plus détaillé). */
+    public boolean prixDetaille() {
+        for (Chantier.Element d : c.elements(Event.DEVIS)) if (estNotreDevis(d) && signe(d)) return true;
+        return false;
+    }
+
+    /** TVA du prix simple. */
+    public int tvaPrix() {
+        if (sansTvaFacturee()) return Tva.AUCUNE;
+        return c.prixTvaBp >= 0 ? c.prixTvaBp : tvaDefaut();
+    }
+
+    /** Prix simple hors TVA (0 s'il n'y en a pas, ou si un devis signé le remplace). */
+    public long prixSimpleHt() {
+        if (c.prixCentimes <= 0 || prixDetaille()) return 0;
+        return Tva.ht(c.prixCentimes, tvaPrix());
+    }
+
+    public long prixSimpleTtc() {
+        long ht = prixSimpleHt();
+        return ht == 0 ? 0 : Tva.ttc(ht, tvaPrix());
+    }
+
+    /** Prix simple à 5,5 % ou 10 %, au moins 1 000 € TTC : la mention du client est exigée. */
+    public boolean certificationRequisePrix() {
+        return prixSimpleHt() > 0 && TvaGuide.tauxReduitBatiment(tvaPrix()) && prixSimpleTtc() >= TvaGuide.SEUIL_SANS_CERTIFICATION_TTC;
+    }
+
+    public boolean certificationManquantePrix() {
+        return certificationRequisePrix() && !"oui".equals(c.certification);
+    }
+
+    /** Une ligne de devis qui reprend le prix simple (pour « Détailler en lignes »). */
+    public Ligne lignePrix() {
+        Ligne l = new Ligne();
+        l.designation = c.titre;
+        l.quantiteMilli = 1000;
+        l.unite = "forfait";
+        l.tvaBp = tvaPrix();
+        l.puHtCentimes = Tva.ht(c.prixCentimes, l.tvaBp);
+        l.poste = Postes.MATERIAUX;
+        return l;
+    }
+
     /** Chiffre d'affaires validé hors TVA (entre proches : sans TVA, donc le montant payé). */
     public long venduHt() {
-        return devisSignesHt() + travauxAcceptesHt() + materielRefactureHt();
+        return prixSimpleHt() + devisSignesHt() + travauxAcceptesHt() + materielRefactureHt();
     }
 
     /** CHIFFRÉ : nos devis en cours (brouillon, envoyés, signés), pour information. */
@@ -256,7 +302,7 @@ public final class Finance {
             String s = d.get("statut");
             if (estNotreDevis(d) && !Chantier.DEVIS_REFUSE.equals(s) && !Chantier.DEVIS_REMPLACE.equals(s)) t += totaux(d).ht;
         }
-        return t;
+        return t + prixSimpleHt();
     }
 
     // ================================================================ PRÉVU / RÉEL par poste
@@ -273,6 +319,8 @@ public final class Finance {
                 m.merge(Postes.normaliser(t.get("poste")), t.centimes("cout_prevu_centimes"), Long::sum);
             }
         }
+        // Tiroir « Répartir » du coût prévu.
+        for (Map.Entry<String, Long> e : c.prevuPostes.entrySet()) m.merge(e.getKey(), e.getValue(), Long::sum);
         // Ancien « budget matériel » : utilisé s'il n'y a aucun coût prévu de matériaux dans les devis.
         if (m.get(Postes.MATERIAUX) == 0 && c.budgetMaterielCentimes > 0) m.put(Postes.MATERIAUX, c.budgetMaterielCentimes);
         return m;
@@ -328,7 +376,7 @@ public final class Finance {
 
     /** % du budget total consommé (dépensé + engagé), en points de base ; -1 sans budget. */
     public long consommeBp() {
-        long budget = somme(prevuParPoste());
+        long budget = budgetTotal();
         return budget <= 0 ? -1 : Tva.arrondi(somme(reelParPoste()) * 10000L, budget);
     }
 
@@ -337,6 +385,8 @@ public final class Finance {
      * et de ce qui est déjà dépensé ou engagé. Simple et prudent.
      */
     public long previsionDeboursSec() {
+        // Un montant simple (seul ou « en plus » du détail) : prévision globale, prudente.
+        if (!budgetDetaille() || c.coutPrevuCentimes > 0) return Math.max(budgetTotal(), somme(reelParPoste()));
         Map<String, Long> b = prevuParPoste();
         Map<String, Long> re = reelParPoste();
         long t = 0;
@@ -378,8 +428,17 @@ public final class Finance {
         }
     }
 
+    /** Budget : le détail (postes, lignes de devis) plus le montant simple « je prévois environ » (en plus). */
+    public long budgetTotal() {
+        return somme(prevuParPoste()) + c.coutPrevuCentimes;
+    }
+
+    public boolean budgetDetaille() {
+        return somme(prevuParPoste()) > 0;
+    }
+
     public Synthese prevu() {
-        return synthese(somme(prevuParPoste()));
+        return synthese(budgetTotal());
     }
 
     public Synthese reel() {
