@@ -97,7 +97,7 @@ public final class GererScreen extends Screen {
         row.setClickable(true);
         LinearLayout textes = UiKit.colonne(a, 2);
         if (f.proches()) {
-            long reste = f.venduHt() - f.encaisse();
+            long reste = com.gregory.truelle.data.RecapFin.construire(f, false).totalTtc - f.encaisse();
             textes.addView(UiKit.text(a, "Reste à verser", 16, UiKit.ENCRE_2, false));
             textes.addView(UiKit.text(a, Money.format(reste), 20, UiKit.ENCRE, true));
             row.setContentDescription("Voir le décompte");
