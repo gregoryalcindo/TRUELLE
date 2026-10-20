@@ -76,8 +76,10 @@ public final class CarnetScreen extends Screen {
         Long evo = k.evolutionPct();
         duo.addView(tuileChiffre("Encaissé en " + Dates.mois(Dates.aujourdhuiDate().getMonthValue()), Money.formatCourt(k.encaisseMois),
                 evo == null ? "" : (evo >= 0 ? "↑ " : "↓ ") + Math.abs(evo) + " % vs mois dernier"), UiKit.poids(1));
-        duo.addView(tuileChiffre("Bénéfice estimé", Money.formatCourt(k.beneficeEstime),
-                k.enCours.size() + (k.enCours.size() > 1 ? " chantiers en cours" : " chantier en cours")), UiKit.poids(1));
+        duo.addView(tuileChiffre("Bénéfice estimé", k.chantiersEstimes == 0 ? "—" : Money.formatCourt(k.beneficeEstime),
+                k.chantiersEstimes == 0 ? (k.enCours.isEmpty() ? "Aucun chantier en cours" : "Ajoutez un budget aux devis")
+                        : k.chantiersEstimes + " chantier" + (k.chantiersEstimes > 1 ? "s" : "") + " avec budget"
+                        + (k.enCours.size() > k.chantiersEstimes ? " sur " + k.enCours.size() : "")), UiKit.poids(1));
         duo.setGravity(Gravity.TOP);
         p.contenu.addView(duo, UiKit.pleineLargeur());
 
@@ -212,8 +214,10 @@ public final class CarnetScreen extends Screen {
         if (conso >= 0) bas.addView(Blocs.barreBudget(a, conso, c.avancementBp, 7));
         LinearLayout l3 = UiKit.ligne(a, 6);
         l3.addView(UiKit.text(a, conso >= 0 ? "Budget " + Finance.pourcent(conso) : "Pas de budget", 13, UiKit.ENCRE_2, false), UiKit.poids(1));
-        long b = f.prevision().benefice;
-        l3.addView(UiKit.text(a, (b > 0 ? "+" : "") + Money.formatCourt(b), 13, b < 0 ? UiKit.ROUGE : UiKit.ENCRE, true));
+        if (conso >= 0) {
+            long b = f.prevision().benefice;
+            l3.addView(UiKit.text(a, (b > 0 ? "+" : "") + Money.formatCourt(b), 13, b < 0 ? UiKit.ROUGE : UiKit.ENCRE, true));
+        }
         bas.addView(l3, UiKit.pleineLargeur());
         carte.addView(bas, UiKit.pleineLargeur());
         carte.setClickable(true);

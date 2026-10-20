@@ -75,7 +75,7 @@ public final class FicheScreen extends Screen {
         sv.addView(page, new ScrollView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         racine.addView(sv, UiKit.remplirHauteur());
 
-        page.addView(couverture(c), UiKit.pleineLargeur());
+        page.addView(couverture(c)); // garde sa hauteur (200 ou 240 dp)
 
         LinearLayout corps = UiKit.colonne(a, 14);
         corps.setPadding(dp(20), dp(16), dp(20), dp(28));
@@ -271,9 +271,12 @@ public final class FicheScreen extends Screen {
         LinearLayout l1 = UiKit.ligne(a, 8);
         l1.setGravity(Gravity.BOTTOM);
         LinearLayout gauche = UiKit.colonne(a, 2);
-        gauche.addView(UiKit.text(a, "Bénéfice estimé", 14, UiKit.ENCRE_2, false));
-        TextView b = UiKit.titre(a, f.venduHt() > 0 ? Money.formatCourt(s.benefice) : "—", 34);
-        if (s.benefice < 0) b.setTextColor(UiKit.ROUGE);
+        // Sans budget, le bénéfice n'est pas estimable : on montre ce qui est vendu, pas un faux bénéfice.
+        boolean estimable = conso >= 0;
+        boolean sansTva = f.proches() || f.r.franchise();
+        gauche.addView(UiKit.text(a, estimable ? "Bénéfice estimé" : sansTva ? "Montant du chantier" : "Montant du chantier (HT)", 14, UiKit.ENCRE_2, false));
+        TextView b = UiKit.titre(a, estimable ? Money.formatCourt(s.benefice) : f.venduHt() > 0 ? Money.formatCourt(f.venduHt()) : "—", 34);
+        if (estimable && s.benefice < 0) b.setTextColor(UiKit.ROUGE);
         gauche.addView(b);
         l1.addView(gauche, UiKit.poids(1));
         TextView etat = etat(c, f, s);
@@ -288,7 +291,9 @@ public final class FicheScreen extends Screen {
             String leg = "Budget " + Finance.pourcent(conso) + (c.avancementBp >= 0 ? " · travaux faits " + Finance.pourcent(c.avancementBp) : "");
             carte.addView(UiKit.text(a, leg, 13, UiKit.ENCRE_2, false));
         } else {
-            carte.addView(UiKit.text(a, "Pas encore de budget : indiquez le coût prévu sur les lignes du devis signé.", 14, UiKit.ENCRE_2, false));
+            long depense = Finance.somme(f.reelParPoste());
+            if (depense > 0) carte.addView(UiKit.ligneChiffre(a, "Dépensé à ce jour", Money.formatCourt(depense), false), UiKit.pleineLargeur());
+            carte.addView(UiKit.text(a, "Bénéfice pas encore estimable : indiquez le coût prévu sur les lignes du devis signé.", 14, UiKit.ENCRE_2, false));
         }
         carte.setClickable(true);
         carte.setContentDescription("Budget et bénéfice, voir le détail");

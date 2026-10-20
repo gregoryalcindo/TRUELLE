@@ -72,8 +72,13 @@ final class Barre {
         col.addView(UiKit.icone(a, icone, couleur, 26));
         TextView t = UiKit.text(a, libelle, 13, couleur, sel);
         if (!sel) t.setTypeface(Typeface.DEFAULT);
-        col.addView(t);
-        f.addView(col, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER));
+        t.setMaxLines(1);
+        t.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams lpIc = (LinearLayout.LayoutParams) col.getChildAt(0).getLayoutParams();
+        lpIc.gravity = Gravity.CENTER_HORIZONTAL;
+        col.addView(t, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        ((LinearLayout.LayoutParams) t.getLayoutParams()).gravity = Gravity.CENTER_HORIZONTAL;
+        f.addView(col, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER));
         if (sel) {
             View indic = new View(a);
             indic.setBackground(UiKit.rounded(UiKit.ENCRE, UiKit.dp(a, 2), 0, 0));

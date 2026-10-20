@@ -263,7 +263,7 @@ final class Blocs {
 
     static String initiales(String titre) {
         StringBuilder b = new StringBuilder();
-        for (String m : titre.trim().split("\\s+")) {
+        for (String m : titre.trim().split("[^\\p{L}\\p{N}]+")) {
             if (m.isEmpty() || m.length() < 3 && b.length() > 0) continue;
             b.append(Character.toUpperCase(m.charAt(0)));
             if (b.length() == 2) break;

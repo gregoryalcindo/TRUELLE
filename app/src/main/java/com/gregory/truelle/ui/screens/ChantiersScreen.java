@@ -45,7 +45,7 @@ public final class ChantiersScreen extends Screen {
         p.entete.addView(haut, UiKit.pleineLargeur());
 
         List<Chantier> tous = store().chantiers();
-        p.entete.addView(segments(tous), UiKit.pleineLargeur());
+        p.entete.addView(segments(tous));
 
         List<Chantier> visibles = new ArrayList<>();
         for (Chantier c : tous) if (filtre.equals(c.statut)) visibles.add(c);
@@ -123,7 +123,7 @@ public final class ChantiersScreen extends Screen {
         if (c.avancementBp >= 0) gauche += " · travaux " + Finance.pourcent(c.avancementBp);
         l3.addView(UiKit.text(a, gauche, 13, UiKit.ENCRE_2, false), UiKit.poids(1));
         long b = f.prevision().benefice;
-        if (f.venduHt() > 0) l3.addView(UiKit.text(a, (b > 0 ? "+" : "") + Money.formatCourt(b), 14, b < 0 ? UiKit.ROUGE : UiKit.ENCRE, true));
+        if (conso >= 0 && f.venduHt() > 0) l3.addView(UiKit.text(a, (b > 0 ? "+" : "") + Money.formatCourt(b), 14, b < 0 ? UiKit.ROUGE : UiKit.ENCRE, true));
         txt.addView(l3, UiKit.pleineLargeur());
         carte.addView(txt, UiKit.poids(1));
 

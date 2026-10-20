@@ -56,6 +56,8 @@ public final class Carnet {
     public long encaisseMois;
     public long encaisseMoisPrecedent;
     public long beneficeEstime;
+    /** Chantiers en cours dont le bénéfice est estimable (un budget existe). */
+    public int chantiersEstimes;
 
     public static Carnet construire(List<Chantier> chantiers, Reglages r) {
         Carnet k = new Carnet();
@@ -113,7 +115,11 @@ public final class Carnet {
 
             if (Chantier.EN_COURS.equals(c.statut)) {
                 k.enCours.add(c);
-                k.beneficeEstime += f.prevision().benefice;
+                // Sans budget, le bénéfice n'est pas estimable : on ne l'additionne pas.
+                if (f.consommeBp() >= 0) {
+                    k.beneficeEstime += f.prevision().benefice;
+                    k.chantiersEstimes++;
+                }
             }
         }
         // Les problèmes avant les points d'attention ; les tâches en retard d'abord.

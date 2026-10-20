@@ -131,8 +131,14 @@ public final class PlanningScreen extends Screen {
         col.setGravity(Gravity.CENTER);
         col.setPadding(0, dp(8), 0, dp(6));
         col.setBackground(UiKit.ripple(UiKit.rounded(sel ? UiKit.ENCRE : dimanche ? UiKit.PIERRE : UiKit.SURFACE, dp(14), 0, 0)));
-        col.addView(UiKit.text(a, Dates.jourCourt(d), 12, sel ? Color.parseColor("#C9CCD0") : UiKit.ENCRE_2, false));
-        col.addView(UiKit.text(a, Integer.toString(d.getDayOfMonth()), 18, sel ? Color.WHITE : UiKit.ENCRE, true));
+        TextView nomJour = UiKit.text(a, Dates.jourCourt(d), 12, sel ? Color.parseColor("#C9CCD0") : UiKit.ENCRE_2, false);
+        nomJour.setGravity(Gravity.CENTER);
+        nomJour.setMaxLines(1);
+        col.addView(nomJour, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        TextView num = UiKit.text(a, Integer.toString(d.getDayOfMonth()), 18, sel ? Color.WHITE : UiKit.ENCRE, true);
+        num.setGravity(Gravity.CENTER);
+        num.setMaxLines(1);
+        col.addView(num, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         View pt = new View(a);
         pt.setBackground(UiKit.rounded(point ? (sel ? Color.WHITE : UiKit.ENCRE) : Color.TRANSPARENT, dp(3), 0, 0));
         col.addView(pt, new LinearLayout.LayoutParams(dp(6), dp(6)));
